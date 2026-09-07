@@ -41,7 +41,7 @@ begin
  if nullif(trim(p_access_token),'') is null then raise exception 'access token required'; end if;
  select s.value into key_text from private.app_secrets s where s.key='token_key';
  insert into public.social_accounts(brand_id,platform,external_account_id,username,display_name,access_token_encrypted,token_expires_at,capabilities,status,last_verified_at)
- values(p_brand_id,p_platform,p_external_account_id,p_username,p_display_name,pgp_sym_encrypt(p_access_token,key_text,'cipher-algo=aes256'),p_token_expires_at,coalesce(p_capabilities,'{}'::jsonb),'connected',now())
+ values(p_brand_id,p_platform,p_external_account_id,p_username,p_display_name,extensions.pgp_sym_encrypt(p_access_token,key_text,'cipher-algo=aes256'),p_token_expires_at,coalesce(p_capabilities,'{}'::jsonb),'connected',now())
  on conflict(brand_id,platform,external_account_id) do update set username=excluded.username,display_name=excluded.display_name,access_token_encrypted=excluded.access_token_encrypted,token_expires_at=excluded.token_expires_at,capabilities=excluded.capabilities,status='connected',last_verified_at=now(),updated_at=now()
  returning id into account_id;
  return account_id;
@@ -86,6 +86,6 @@ end $$;
 
 create or replace function public.claim_due_publish_jobs(p_batch_size int default 6) returns setof public.publish_jobs language plpgsql security definer set search_path='' as $$
 begin return query with picked as(select j.id from public.publish_jobs j where j.status in('scheduled','retrying') and j.scheduled_for<=now() and j.attempts<4 order by j.scheduled_for for update skip locked limit greatest(1,least(coalesce(p_batch_size,6),12))), upd as(update public.publish_jobs j set status='publishing',attempts=j.attempts+1,last_attempt_at=now(),updated_at=now() from picked p where j.id=p.id returning j.*) select * from upd; end $$;
-create or replace function public.worker_get_social_token(p_account_id uuid) returns text language sql security definer set search_path='' as $$ select pgp_sym_decrypt(s.access_token_encrypted,(select value from private.app_secrets where key='token_key')) from public.social_accounts s where s.id=p_account_id and s.status='connected' $$;
+create or replace function public.worker_get_social_token(p_account_id uuid) returns text language sql security definer set search_path='' as $$ select extensions.pgp_sym_decrypt(s.access_token_encrypted,(select value from private.app_secrets where key='token_key')) from public.social_accounts s where s.id=p_account_id and s.status='connected' $$;
 create or replace function public.worker_secret_matches(p_candidate text) returns boolean language sql security definer set search_path='' as $$ select coalesce(p_candidate,'')=(select value from private.app_secrets where key='worker_http_secret') $$;
 create or replace function public.worker_graph_version() returns text language sql security definer set search_path='' as $$ select value from private.app_secrets where key='meta_graph_version' $$;

@@ -38,6 +38,8 @@ end $$;
 
 revoke execute on all functions in schema private from public,anon,authenticated;
 revoke usage on schema private from public,anon,authenticated;
+grant usage on schema private to authenticated;
+grant execute on function private.is_org_member(uuid),private.has_org_role(uuid,text[]),private.brand_org(uuid),private.can_access_brand(uuid),private.can_upload_brand(uuid),private.can_edit_brand(uuid),private.can_publish_brand(uuid) to authenticated;
 revoke execute on function public.claim_due_publish_jobs(int),public.worker_get_social_token(uuid),public.worker_secret_matches(text),public.worker_graph_version() from public,anon,authenticated;
 grant execute on function public.claim_due_publish_jobs(int),public.worker_get_social_token(uuid),public.worker_secret_matches(text),public.worker_graph_version() to service_role;
 revoke execute on function public.bootstrap_workspace(text),public.create_brand(text,text,text),public.connect_social_account(uuid,public.social_platform,text,text,text,text,timestamptz,jsonb),public.schedule_content(uuid,text[],timestamptz) from public,anon;

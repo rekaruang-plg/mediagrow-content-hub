@@ -1,0 +1,11 @@
+.meta-connect .connection-message{margin:0 0 16px;padding:14px;border:1px solid #e9d795;border-radius:10px;background:#fff9e6;color:#645221;line-height:1.6}
+.meta-connect .connection-help{font-size:12px;color:#686d79;line-height:1.7;margin:4px 0 10px}
+.meta-connect .connection-actions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.meta-connect .secondary{background:#eef0f5;color:#323744}
+.meta-connect button:disabled{cursor:not-allowed;opacity:.5}
+.meta-connect .connected-accounts{border-top:1px solid #e5e7eb;margin-top:24px;padding-top:8px}
+.meta-connect .connected-accounts article{display:grid;gap:5px;padding:14px;margin:8px 0;background:#f6f7fb;border-radius:10px}
+.meta-connect .connected-accounts span,.meta-connect .connected-accounts>p{font-size:12px;color:#686d79;line-height:1.6}
+.meta-connect fieldset{grid-template-columns:1fr}
+.meta-connect .check{line-height:1.5;overflow-wrap:anywhere}
+.meta-connect .check input{flex-shrink:0}

@@ -6,7 +6,7 @@ Multi-brand social content inbox and auto-publisher for Instagram and Facebook.
 
 1. Team signs in with Supabase Auth.
 2. Owner creates brands.
-3. Owner connects one Instagram Professional/Business account and/or Facebook Page per brand.
+3. Owner/admin selects a brand, signs in through Facebook, selects its Page and linked Instagram, and confirms the accounts.
 4. Team uploads an image/video to the private `content-media` bucket.
 5. `schedule_content()` creates independent publish jobs for each channel.
 6. Supabase Cron invokes `publish-worker` every minute.
@@ -21,7 +21,8 @@ Multi-brand social content inbox and auto-publisher for Instagram and Facebook.
 - Meta access tokens are encrypted with `pgcrypto` before storage.
 - Decryption functions are executable only by `service_role`.
 - Publish worker uses a custom random secret stored in the private schema.
-- No Meta/service-role secrets are required on Vercel.
+- OAuth requires `META_APP_SECRET` on the Vercel server; no Supabase service-role key is needed there.
+- Temporary OAuth sessions use authenticated encryption, HttpOnly cookies and a ten-minute expiry.
 
 ## Deploy
 
@@ -34,6 +35,7 @@ Apply migrations in order:
 3. `supabase/migrations/003_content_hub_security.sql`
 4. `supabase/migrations/004_content_hub_rls_helper_permissions.sql`
 5. `supabase/migrations/005_content_hub_storage_policy_path_fix.sql`
+6. `supabase/migrations/20260907160848_content_hub_meta_oauth_batch.sql`
 
 Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
 
@@ -48,7 +50,13 @@ The project supports public Supabase URL + publishable key through environment v
 
 ## Meta connection
 
-The V1 connection screen accepts the account/Page ID plus publishing access token. A full Facebook Login OAuth onboarding flow is the next production-hardening step for agency/client self-service.
+The connection screen uses Facebook OAuth and explicit Page/Instagram selection per brand.
+Follow [the OAuth setup guide](docs/meta-oauth-setup.md) for the App Secret, exact callback URL,
+permissions, test accounts, and external-client review requirements. Until the secret is configured,
+the screen explains that login has not been activated. Connecting accounts does not schedule existing content.
+
+Validation: `npm test` (mocked OAuth/API security tests), `npm run typecheck`, `npm run build`.
+Real Meta login and publishing require configured credentials and separate verification.
 
 Supported worker paths in V1:
 

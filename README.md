@@ -27,14 +27,19 @@ Multi-brand social content inbox and auto-publisher for Instagram and Facebook.
 
 ### Supabase
 
-1. Apply `supabase/migrations/001_content_hub.sql`.
-2. Deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**.
-3. Run `supabase/scheduler.example.sql`.
-4. Create your first user from the web UI (email/password). If email confirmations are enabled, confirm the email first.
+Apply migrations in order:
+
+1. `supabase/migrations/001_content_hub.sql`
+2. `supabase/migrations/002_content_hub_functions.sql`
+3. `supabase/migrations/003_content_hub_security.sql`
+
+Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
+
+Create the first user from the web UI. If email confirmations are enabled, confirm the email first.
 
 ### Vercel
 
-The project supports public Supabase URL + publishable key through environment variables.
+The project supports public Supabase URL + publishable key through environment variables:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`

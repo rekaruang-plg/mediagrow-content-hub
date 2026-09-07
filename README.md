@@ -33,6 +33,7 @@ Apply migrations in order:
 2. `supabase/migrations/002_content_hub_functions.sql`
 3. `supabase/migrations/003_content_hub_security.sql`
 4. `supabase/migrations/004_content_hub_rls_helper_permissions.sql`
+5. `supabase/migrations/005_content_hub_storage_policy_path_fix.sql`
 
 Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
 

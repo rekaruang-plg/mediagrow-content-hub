@@ -192,3 +192,33 @@ test('cancel clears temporary credentials and performs no account writes', async
   const result = await handlers.cancel(request('cancel', { cookie: oauth.seal(choiceFlow()), body: {} }));
   assert.equal(result.status, 200); assert.match(result.headers.get('set-cookie'), /Max-Age=0/); assert.equal(saves.length, 0);
 });
+test('business consent is explicit, owner authorized, and cannot bypass a login configuration', async () => {
+  assert.ok(!new URL(oauth.authorizationUrl('test-state')).searchParams.get('scope').includes('business_management'));
+  let result = await handlers.start(request('start', { body: { brandId: BRAND, includeBusiness: true } }));
+  assert.equal(result.status, 200);
+  const url = new URL((await result.json()).url);
+  assert.ok(url.searchParams.get('scope').split(',').includes('business_management'));
+  assert.equal(oauth.unseal(result.cookies.get(oauth.COOKIE_NAME).value).brandId, BRAND);
+  role = 'editor';
+  result = await handlers.start(request('start', { body: { brandId: BRAND, includeBusiness: true } }));
+  assert.equal(result.status, 403);
+  role = 'owner'; process.env.META_LOGIN_CONFIG_ID = '123456';
+  result = await handlers.start(request('start', { body: { brandId: BRAND, includeBusiness: true } }));
+  assert.equal(result.status, 409); assert.equal((await result.json()).code, 'business_configuration');
+  assert.equal(saves.length, 0);
+});
+test('empty Page diagnostics report actual grants without credentials or account writes', async () => {
+  pages = [];
+  const cookie = oauth.seal(choiceFlow());
+  let result = await handlers.choices(request('choices', { cookie }));
+  assert.equal(result.status, 200);
+  const payload = await result.json();
+  assert.equal(payload.diagnostics.pageCount, 0);
+  assert.equal(payload.diagnostics.permissions.find(p => p.name === 'business_management').granted, false);
+  assert.equal(payload.diagnostics.permissions.find(p => p.name === 'pages_show_list').granted, true);
+  for (const secret of [META_TOKEN, PAGE_TOKEN, SUPABASE_TOKEN, SECRET]) assert.ok(!JSON.stringify(payload).includes(secret));
+  granted.push('business_management');
+  result = await handlers.choices(request('choices', { cookie }));
+  assert.equal((await result.json()).diagnostics.permissions.find(p => p.name === 'business_management').granted, true);
+  assert.equal(saves.length, 0);
+});

@@ -74,6 +74,25 @@ because the existing worker/cron will publish due jobs.
 
 ## Security and limits
 
+### Empty Page list
+
+The account chooser displays a safe, fixed list of permission names and whether the current
+Meta token has each grant. It does not expose access tokens, raw provider errors or user IDs.
+If Meta returns zero Pages and `business_management` is absent, the user can explicitly select
+**Hubungkan ulang dengan izin bisnis**. This starts a new, authenticated owner/admin OAuth
+flow for the same brand, adding `business_management` to the requested scopes. Enable this
+permission in the Meta dashboard for eligible testers or obtain the access required for clients.
+This is a troubleshooting option for business-managed Page access, not a guarantee that an empty
+response is caused by this permission. No Business Manager assets are modified by the application.
+
+When `META_LOGIN_CONFIG_ID` is set, configure that permission in the Meta login configuration;
+the application will not silently bypass `config_id` by substituting a different login flow.
+The Page listing endpoint remains `/me/accounts`; alternate business Page endpoints are not
+implemented. If the diagnostic shows the grant but no Pages, investigate asset assignment and
+provider responses rather than repeating the same consent flow indefinitely.
+
+### Session protection
+
 - Start/connect/cancel require a validated Supabase bearer token and same-origin POST.
 - Owner/admin access is rechecked against database memberships at start, callback and save.
 - Random OAuth state is bound to an AES-GCM authenticated, HttpOnly, Secure, SameSite=Lax cookie.

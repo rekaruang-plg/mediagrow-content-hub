@@ -64,10 +64,11 @@ export function same(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 export function nonce() { return randomBytes(32).toString("hex"); }
-export function authorizationUrl(state: string) {
+export function authorizationUrl(state: string, includeBusiness = false) {
   const c = requireConfig(), url = new URL(`https://www.facebook.com/${c.version}/dialog/oauth`);
+  if (includeBusiness && c.configId) throw new OAuthError("business_configuration", "Admin perlu menambahkan business_management pada konfigurasi Facebook Login for Business yang digunakan aplikasi, lalu ulangi login.", 409);
   url.search = new URLSearchParams({ client_id: c.appId, redirect_uri: c.redirectUri, response_type: "code", state,
-    ...(c.configId ? { config_id: c.configId, override_default_response_type: "true" } : { scope: SCOPES.join(","), auth_type: "rerequest" }) }).toString();
+    ...(c.configId ? { config_id: c.configId, override_default_response_type: "true" } : { scope: [...SCOPES, ...(includeBusiness ? ["business_management"] : [])].join(","), auth_type: "rerequest" }) }).toString();
   return url.toString();
 }
 

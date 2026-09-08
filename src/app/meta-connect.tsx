@@ -7,7 +7,7 @@ import "./meta-connect.css";
 type Brand = { id: string; name: string };
 type Platform = "facebook" | "instagram";
 type Choice = { id: string; name: string; instagram: { id: string; username: string; name: string } | null; facebookAllowed: boolean; instagramAllowed: boolean };
-type Pending = { brand: Brand; flowId: string; pages: Choice[] };
+type Pending = { brand: Brand; flowId: string; pages: Choice[]; diagnostics?: { pageCount: number; usesLoginConfiguration: boolean; permissions: { name: string; granted: boolean }[] } };
 type Account = { id: string; brand_id: string; platform: Platform; username: string | null; display_name: string | null; status: string; token_expires_at: string | null };
 
 const callbackErrors: Record<string, string> = {
@@ -73,9 +73,9 @@ export default function MetaConnect({ brands, userId, onConnected }: { brands: B
     return () => { active = false; };
   }, [userId]);
 
-  async function start() {
+  async function start(includeBusiness = false) {
     setBusy(true); setMessage("");
-    try { const result = await api("start", { brandId }); window.location.assign(result.url); }
+    try { const result = await api("start", { brandId: pending?.brand.id || brandId, includeBusiness }); window.location.assign(result.url); }
     catch (e) { setMessage(e instanceof Error ? e.message : "Login belum dapat dimulai."); setBusy(false); }
   }
   async function connect() {
@@ -115,7 +115,18 @@ export default function MetaConnect({ brands, userId, onConnected }: { brands: B
     {retryChoices && <div className="connection-actions"><button type="button" disabled={busy} onClick={() => void loadChoices()}>Muat ulang daftar Page</button><button type="button" className="secondary" disabled={busy} onClick={() => void cancel()}>Batalkan sesi</button></div>}
     {pending && <form onSubmit={e => { e.preventDefault(); void connect(); }}>
       <p>Akun akan dihubungkan ke <strong>{pending.brand.name}</strong>.</p>
-      {!pending.pages.length ? <div className="connection-message">Meta tidak mengirim Page yang dapat dipilih. Ulangi login, pilih Page brand saat diminta, dan pastikan Facebook yang digunakan memiliki akses ke Page itu.</div> : <>
+      {!pending.pages.length ? <div className="connection-message">
+        <p>Login berhasil, tetapi Meta mengirim 0 Facebook Page untuk sesi ini. Ini belum menunjukkan penyebab pastinya.</p>
+        {pending.diagnostics && <>
+          <details open><summary>Pemeriksaan izin koneksi</summary><ul>{pending.diagnostics.permissions.map(p => <li key={p.name}><code>{p.name}</code>: {p.granted ? "Diberikan" : "Belum diberikan"}</li>)}</ul></details>
+          {!pending.diagnostics.permissions.some(p => p.name === "business_management" && p.granted) && <>
+            <p>Jika Page dikelola melalui portofolio bisnis, coba koneksi dengan izin bisnis tambahan. Izin ini bernama business_management dan mencakup akses pengelolaan aset bisnis di Meta. MediaGrow menggunakannya pada proses pencarian akun, tanpa mengubah kepemilikan atau anggota bisnis.</p>
+            {pending.diagnostics.usesLoginConfiguration ? <p>Admin perlu memasukkan business_management ke konfigurasi Facebook Login for Business yang digunakan aplikasi, kemudian mulai login baru.</p> : <button type="button" disabled={busy} onClick={() => void start(true)}>Hubungkan ulang dengan izin bisnis</button>}
+          </>}
+        </>}
+        <p>Jika izin sudah lengkap tetapi Page tetap kosong, periksa akses publikasi Facebook ke Page dan pemilihan aset saat login. Pemeriksaan di atas dapat dikirim ke admin tanpa membagikan token.</p>
+        <button type="button" className="secondary" disabled={busy} onClick={() => void loadChoices()}>Periksa ulang daftar Page</button>
+      </div> : <>
         <label>Facebook Page<select required value={pageId} disabled={busy} onChange={e => {
           setPageId(e.target.value); const p = pending.pages.find(x => x.id === e.target.value);
           setPlatforms([...(p?.facebookAllowed ? ["facebook" as const] : []), ...(p?.instagramAllowed ? ["instagram" as const] : [])]);

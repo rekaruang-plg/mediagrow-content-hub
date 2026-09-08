@@ -59,10 +59,10 @@ export async function start(req: NextRequest) {
   try {
     checkOrigin(req, true); requireConfig();
     const auth = await authenticated(bearer(req));
-    const { brandId } = z.object({ brandId: z.string().uuid() }).parse(await req.json());
+    const { brandId, includeBusiness } = z.object({ brandId: z.string().uuid(), includeBusiness: z.boolean().default(false) }).parse(await req.json());
     await brandAdmin(auth, brandId);
     const state = nonce();
-    return cookie(json({ url: authorizationUrl(state) }), { stage: "start", userId: auth.user.id, brandId, accessToken: auth.token, state, flowId: nonce(), expires: Date.now() + FLOW_SECONDS * 1000 });
+    return cookie(json({ url: authorizationUrl(state, includeBusiness) }), { stage: "start", userId: auth.user.id, brandId, accessToken: auth.token, state, flowId: nonce(), expires: Date.now() + FLOW_SECONDS * 1000 });
   } catch (e) { return failure(e); }
 }
 export async function callback(req: NextRequest) {
@@ -93,7 +93,9 @@ export async function choices(req: NextRequest) {
   try {
     const { flow, brand } = await choiceContext(req);
     const { pages, granted } = await listPages(flow.metaToken);
-    return json({ brand: { id: brand.id, name: brand.name }, flowId: flow.flowId, pages: pages.map(p => pageChoice(p, granted)) });
+    const permissionNames = ["pages_show_list", "pages_read_engagement", "pages_manage_posts", "instagram_basic", "instagram_content_publish", "business_management"];
+    return json({ brand: { id: brand.id, name: brand.name }, flowId: flow.flowId, pages: pages.map(p => pageChoice(p, granted)),
+      diagnostics: { pageCount: pages.length, usesLoginConfiguration: Boolean(config().configId), permissions: permissionNames.map(name => ({ name, granted: granted.has(name) })) } });
   } catch (e) { return failure(e); }
 }
 export async function connect(req: NextRequest) {

@@ -37,6 +37,9 @@ Apply migrations in order:
 5. `supabase/migrations/005_content_hub_storage_policy_path_fix.sql`
 6. `supabase/migrations/20260907160848_content_hub_meta_oauth_batch.sql`
 7. `supabase/migrations/20260908030541_hybrid_content_scheduling.sql`
+8. `supabase/migrations/20260908045147_internal_content_operations.sql`
+9. `supabase/migrations/20260908053000_internal_operations_indexes.sql`
+10. `supabase/migrations/20260908053500_internal_operations_scope_hardening.sql`
 
 Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
 
@@ -77,3 +80,12 @@ Meta permissions and account eligibility still determine whether a specific acco
 - **Manual** uses the exact future date and time selected by the team.
 
 The Brand screen controls autopilot, minimum spacing, and one to four posting times for each day. The Calendar screen shows the resulting weekly queue in Asia/Jakarta time. Smart recommendations are transparent and rules-based; they do not call an external AI provider or create additional usage charges.
+
+## Internal team workflow
+
+- A brand can require approval before any publish job is created. Uploaders send content to the approval queue; an owner, admin, or publisher can approve it or return it with revision notes.
+- Content stores its requested channels and scheduling mode. Approval automatically creates the intended jobs using the latest brand rules.
+- The calendar can reschedule or cancel queued jobs. Failed jobs can be retried manually after the underlying Meta issue is fixed.
+- The content library opens a signed, short-lived media preview and allows editable content to be updated and resubmitted.
+- The Team screen creates seven-day, email-bound invitation links and assigns workspace roles plus per-brand access.
+- The Activity screen records content, schedule, publication, team, and brand-rule changes without exposing Meta tokens.

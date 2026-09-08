@@ -51,3 +51,25 @@ test('upload source exposes manual, auto, and smart scheduling through the hybri
   assert.ok(source.includes('schedule_content_hybrid'));
   assert.ok(source.includes('recommend_content_schedule'));
 });
+
+test('internal operations expose approval, job management, activity, and team workflows', () => {
+  const page = fs.readFileSync(require.resolve('../src/app/page.tsx'), 'utf8');
+  const operations = fs.readFileSync(require.resolve('../src/app/operations-panels.tsx'), 'utf8');
+  assert.ok(page.includes('review_content'));
+  assert.ok(page.includes('manage_publish_job'));
+  assert.ok(page.includes('list_workspace_activity'));
+  assert.ok(page.includes('approval_required'));
+  assert.ok(page.includes('<TeamPanel'));
+  assert.ok(operations.includes('Persetujuan konten'));
+  assert.ok(operations.includes('Preview & detail konten'));
+  assert.ok(operations.includes('create_workspace_invite'));
+  assert.ok(operations.includes('update_brand_member_access'));
+});
+
+test('calendar and job table include reschedule, cancel, and retry controls', () => {
+  const source = fs.readFileSync(require.resolve('../src/app/workspace-panels.tsx'), 'utf8');
+  assert.ok(source.includes('Simpan jadwal'));
+  assert.ok(source.includes('Batalkan'));
+  assert.ok(source.includes('Coba lagi'));
+  assert.ok(source.includes('onJobAction'));
+});

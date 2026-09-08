@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 
 type Brand = { id: string; name: string; niche: string | null };
 type PostingWindow = { day: number; times: string[] };
-type BrandRule = { brand_id: string; autopilot_enabled: boolean; timezone: string; min_gap_minutes: number; posting_windows: PostingWindow[] };
+type BrandRule = { brand_id: string; autopilot_enabled: boolean; approval_required: boolean; timezone: string; min_gap_minutes: number; posting_windows: PostingWindow[] };
 
 const days = [
   { value: 1, label: "Senin" },
@@ -28,6 +28,7 @@ const normalize = (windows?: PostingWindow[]) => days.map(day => ({
 export function BrandScheduleEditor({ brands, rules, onSaved }: { brands: Brand[]; rules: BrandRule[]; onSaved: () => Promise<void> | void }) {
   const [brandId, setBrandId] = useState("");
   const [enabled, setEnabled] = useState(true);
+  const [approvalRequired, setApprovalRequired] = useState(false);
   const [gap, setGap] = useState(180);
   const [windows, setWindows] = useState<PostingWindow[]>(normalize());
   const [saving, setSaving] = useState(false);
@@ -41,6 +42,7 @@ export function BrandScheduleEditor({ brands, rules, onSaved }: { brands: Brand[
     const rule = rules.find(item => item.brand_id === brandId);
     if (!rule) return;
     setEnabled(rule.autopilot_enabled);
+    setApprovalRequired(rule.approval_required);
     setGap(rule.min_gap_minutes);
     setWindows(normalize(rule.posting_windows));
     setMessage("");
@@ -60,6 +62,7 @@ export function BrandScheduleEditor({ brands, rules, onSaved }: { brands: Brand[
       p_autopilot_enabled: enabled,
       p_min_gap_minutes: gap,
       p_posting_windows: windows,
+      p_approval_required: approvalRequired,
     });
     if (error) setMessage(error.message);
     else {
@@ -79,6 +82,7 @@ export function BrandScheduleEditor({ brands, rules, onSaved }: { brands: Brand[
         <label>Jeda minimum<select value={gap} onChange={event => setGap(Number(event.target.value))}><option value={60}>1 jam</option><option value={120}>2 jam</option><option value={180}>3 jam</option><option value={240}>4 jam</option><option value={360}>6 jam</option></select></label>
       </div>
       <label className="autopilot-toggle"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)}/><span><b>Aktifkan autopilot untuk brand ini</b><small>Jika dimatikan, konten hanya dapat dijadwalkan secara Manual.</small></span></label>
+      <label className="autopilot-toggle approval-toggle"><input type="checkbox" checked={approvalRequired} onChange={event => setApprovalRequired(event.target.checked)}/><span><b>Wajibkan persetujuan sebelum terbit</b><small>Upload dari tim masuk ke halaman Persetujuan dan belum akan dibuatkan jadwal sampai disetujui.</small></span></label>
       <div className="weekly-windows">
         {days.map(day => {
           const window = windows.find(item => item.day === day.value) || { day: day.value, times: ["09:00"] };

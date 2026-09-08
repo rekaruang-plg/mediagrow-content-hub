@@ -107,6 +107,41 @@
 
 .local-image-preview img { object-fit: contain; }
 
+.format-picker {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.format-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 82px;
+  padding: 13px;
+  border: 1px solid #e8e4ee;
+  border-radius: 11px;
+  background: #fbfafd;
+  color: #81748c;
+  cursor: pointer;
+}
+
+.format-card.selected { border-color: #ad94e1; background: #f4effd; color: #7653b2; box-shadow: 0 0 0 3px #eee7fb; }
+.format-card input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.format-card span { display: grid; gap: 6px; }
+.format-card b { color: #5f5369; font-size: 11px; }
+.format-card small { font-size: 9px; font-weight: 500; line-height: 1.45; }
+
+.media-preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.media-preview-grid.single { grid-template-columns: 1fr; }
+.media-preview-grid .media-preview { position: relative; margin: 0; min-width: 0; }
+.media-preview-grid .local-image-preview { min-height: 210px; }
+.media-preview-grid video { width: 100%; min-height: 210px; }
+.media-preview-grid small { overflow-wrap: anywhere; }
+.media-preview-grid .media-order { position: absolute; z-index: 2; top: 20px; left: 20px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; background: #6544bf; color: white; font-size: 11px; font-weight: 800; box-shadow: 0 3px 8px #33226745; }
+
 .media-inspection {
   display: grid;
   gap: 9px;
@@ -149,4 +184,7 @@
   .notification-item { grid-template-columns: auto minmax(0, 1fr); }
   .notification-item button { grid-column: 1 / -1; width: 100%; }
   .local-image-preview { min-height: 210px; }
+  .format-picker { grid-template-columns: 1fr 1fr; }
+  .format-card { min-height: 76px; }
+  .media-preview-grid { grid-template-columns: 1fr; }
 }

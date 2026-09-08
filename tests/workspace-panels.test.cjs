@@ -10,7 +10,7 @@ require.extensions['.tsx'] = (module, filename) => {
   });
   module._compile(outputText, filename);
 };
-const { WorkspaceOverview, WorkspaceCalendar, evaluateMedia } = require('../src/app/workspace-panels.tsx');
+const { WorkspaceOverview, WorkspaceCalendar, evaluateMedia, evaluateMediaSelection } = require('../src/app/workspace-panels.tsx');
 const { buildWorkspaceNotifications, NotificationPanel } = require('../src/app/notification-panel.tsx');
 test('one content item with mixed channel outcomes displays both jobs and the failure detail', () => {
   const common = { content_item_id: 'content-1', publish_kind: 'feed', scheduled_for: '2026-09-09T02:00:00Z' };
@@ -44,13 +44,30 @@ test('weekly calendar renders a scheduled job with brand and channel context', (
   assert.ok(html.includes('IG feed'));
 });
 
-test('upload source exposes manual, auto, and smart scheduling through the hybrid RPC', () => {
+test('upload source exposes manual, auto, and smart scheduling through the atomic content RPC', () => {
   const source = fs.readFileSync(require.resolve('../src/app/page.tsx'), 'utf8');
   assert.ok(source.includes('value="smart"'));
   assert.ok(source.includes('value="auto"'));
   assert.ok(source.includes('value="manual"'));
-  assert.ok(source.includes('schedule_content_hybrid'));
+  assert.ok(source.includes('create_content_with_assets'));
   assert.ok(source.includes('recommend_content_schedule'));
+});
+
+test('carousel and Story selections enforce format-specific asset rules', () => {
+  const image = (name, width=1080, height=1080) => ({ name, mimeType: 'image/jpeg', mediaType: 'image', bytes: 500000, width, height, durationSeconds: null });
+  const video = { name: 'story.mp4', mimeType: 'video/mp4', mediaType: 'video', bytes: 1000000, width: 1080, height: 1920, durationSeconds: 12 };
+  assert.equal(evaluateMediaSelection([image('one.jpg')], ['ig_feed'], 'carousel').errors.some(message => message.includes('2–10')), true);
+  assert.equal(evaluateMediaSelection([image('one.jpg'), image('two.jpg')], ['ig_feed'], 'carousel').errors.length, 0);
+  assert.equal(evaluateMediaSelection([image('one.jpg'), video], ['ig_feed'], 'carousel').errors.some(message => message.includes('gambar saja')), true);
+  assert.equal(evaluateMediaSelection([image('story.jpg', 1080, 1920), video], ['ig_story'], 'story').errors.length, 0);
+});
+
+test('worker contains resumable multi-frame Story and carousel publishing flows', () => {
+  const worker = fs.readFileSync(require.resolve('../supabase/functions/publish-worker/index.ts'), 'utf8');
+  assert.ok(worker.includes('media_type:"CAROUSEL"'));
+  assert.ok(worker.includes('attached_media['));
+  assert.ok(worker.includes('published_asset_positions'));
+  assert.ok(worker.includes('content_assets'));
 });
 
 test('internal operations expose approval, job management, activity, and team workflows', () => {

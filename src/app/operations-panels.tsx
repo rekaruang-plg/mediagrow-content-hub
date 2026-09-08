@@ -17,6 +17,8 @@ export type OperationsContent = {
   review_note: string | null;
   media_type: string;
   primary_asset_path: string;
+  ai_metadata?: { content_format?: string; asset_count?: number } | null;
+  content_assets?: { storage_path: string; media_type: string; position: number }[];
   created_at: string;
 };
 export type ActivityItem = {
@@ -208,20 +210,22 @@ export function ContentDetailModal({ content, brandName, busy, onClose, onSave, 
   const [title, setTitle] = useState(content.title);
   const [brief, setBrief] = useState(content.brief || "");
   const [caption, setCaption] = useState(content.caption || "");
-  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaUrls, setMediaUrls] = useState<{ url: string; mediaType: string }[]>([]);
   const [mediaError, setMediaError] = useState("");
   useEffect(() => {
     let active = true;
-    supabase.storage.from("content-media").createSignedUrl(content.primary_asset_path, 900).then(({ data, error }) => {
-      if (!active) return;
-      if (error) setMediaError("Preview media tidak dapat dimuat."); else setMediaUrl(data.signedUrl);
-    });
+    const assets=(content.content_assets?.length?content.content_assets:[{storage_path:content.primary_asset_path,media_type:content.media_type,position:0}]).slice().sort((a,b)=>a.position-b.position);
+    Promise.all(assets.map(async asset => {
+      const {data,error}=await supabase.storage.from("content-media").createSignedUrl(asset.storage_path,900);
+      if(error||!data?.signedUrl)throw error||new Error("signed URL missing");
+      return {url:data.signedUrl,mediaType:asset.media_type};
+    })).then(urls=>{if(active)setMediaUrls(urls)}).catch(()=>{if(active)setMediaError("Preview media tidak dapat dimuat.")});
     return () => { active = false; };
-  }, [content.primary_asset_path]);
+  }, [content]);
   const editable = !["publishing","posted"].includes(content.status);
   const canResubmit = ["draft","changes_requested"].includes(content.approval_status);
   return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="content-modal" role="dialog" aria-modal="true" aria-labelledby="content-modal-title">
     <header><div><small>{brandName} · {approvalLabels[content.approval_status] || content.approval_status}</small><h3 id="content-modal-title">Preview & detail konten</h3></div><button className="icon-button" aria-label="Tutup detail konten" onClick={onClose}><X size={18}/></button></header>
-    <div className="content-modal-grid"><div className="stored-media-preview">{mediaUrl ? content.media_type === "video" ? <video controls preload="metadata" src={mediaUrl}/> : <Image src={mediaUrl} alt={`Preview ${content.title}`} fill sizes="(max-width: 760px) 100vw, 45vw" unoptimized/> : <div>{mediaError || "Memuat preview…"}</div>}</div><form onSubmit={event => { event.preventDefault(); void onSave(content.id,title,brief,caption); }}><label>Judul<input value={title} onChange={event => setTitle(event.target.value)} disabled={!editable} required/></label><label>Brief<textarea rows={3} value={brief} onChange={event => setBrief(event.target.value)} disabled={!editable}/></label><label>Caption<textarea rows={8} value={caption} onChange={event => setCaption(event.target.value)} disabled={!editable}/></label>{content.review_note ? <div className="review-note"><RotateCcw size={16}/><div><b>Catatan revisi</b><p>{content.review_note}</p></div></div> : null}<div className="modal-actions">{editable ? <button disabled={busy}>Simpan perubahan</button> : null}{canResubmit ? <button type="button" className="secondary" disabled={busy} onClick={() => void onSubmit(content.id)}><Send size={15}/>Kirim untuk review</button> : null}</div></form></div>
+    <div className="content-modal-grid"><div className={mediaUrls.length>1?"stored-media-preview multi":"stored-media-preview"}>{mediaUrls.length?mediaUrls.map((media,index)=><div className="stored-media-frame" key={media.url}><span>{index+1}</span>{media.mediaType==="video"?<video controls preload="metadata" src={media.url}/>:<Image src={media.url} alt={`Preview ${content.title} ${index+1}`} fill sizes="(max-width: 760px) 100vw, 45vw" unoptimized/>}</div>):<div>{mediaError||"Memuat preview…"}</div>}</div><form onSubmit={event => { event.preventDefault(); void onSave(content.id,title,brief,caption); }}><label>Judul<input value={title} onChange={event => setTitle(event.target.value)} disabled={!editable} required/></label><label>Brief<textarea rows={3} value={brief} onChange={event => setBrief(event.target.value)} disabled={!editable}/></label><label>Caption<textarea rows={8} value={caption} onChange={event => setCaption(event.target.value)} disabled={!editable}/></label>{content.review_note ? <div className="review-note"><RotateCcw size={16}/><div><b>Catatan revisi</b><p>{content.review_note}</p></div></div> : null}<div className="modal-actions">{editable ? <button disabled={busy}>Simpan perubahan</button> : null}{canResubmit ? <button type="button" className="secondary" disabled={busy} onClick={() => void onSubmit(content.id)}><Send size={15}/>Kirim untuk review</button> : null}</div></form></div>
   </section></div>;
 }

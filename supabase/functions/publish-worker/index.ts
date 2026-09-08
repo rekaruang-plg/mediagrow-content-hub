@@ -1,9 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.115.0";
 
-type Job = { id:string; content_item_id:string; social_account_id:string; platform:"instagram"|"facebook"; publish_kind:"feed"|"story"|"reel"; scheduled_for:string; attempts:number };
-type Content = { id:string; caption:string|null; media_type:"image"|"video"; primary_asset_path:string };
+type Job = { id:string; content_item_id:string; social_account_id:string; platform:"instagram"|"facebook"; publish_kind:"feed"|"story"|"reel"; scheduled_for:string; attempts:number; metadata:Record<string,any>|null };
+type Content = { id:string; caption:string|null; media_type:"image"|"video"; primary_asset_path:string; ai_metadata:Record<string,any>|null };
 type Account = { id:string; external_account_id:string; platform:"instagram"|"facebook" };
+type Asset = { storage_path:string; media_type:"image"|"video"; position:number; signedUrl:string };
+type Published = { externalId:string; externalUrl:string|null };
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,12 +48,30 @@ async function publishInstagram(version:string, accountId:string, token:string, 
   if (mediaType === "video" && kind === "feed") throw new Error("Video Instagram Feed harus dipilih sebagai Reel pada V1");
   const container = await graph(version, `${accountId}/media`, token, params);
   if (!container.id) throw new Error("Instagram tidak mengembalikan creation_id");
-  if (mediaType === "video") await waitInstagram(version, container.id, token);
+  if (mediaType === "video" || kind === "story") await waitInstagram(version, container.id, token);
   const published = await graph(version, `${accountId}/media_publish`, token, { creation_id:container.id });
   const externalId = published.id;
   let externalUrl:string|null = null;
   try { const info = await graph(version, externalId, token, { fields:"permalink" }, "GET"); externalUrl = info.permalink || null; } catch { /* optional */ }
   return { externalId, externalUrl };
+}
+async function publishInstagramCarousel(version:string, accountId:string, token:string, assets:Asset[], caption:string):Promise<Published> {
+  const children:string[]=[];
+  for (const asset of assets) {
+    if (asset.media_type !== "image") throw new Error("Carousel Instagram saat ini hanya mendukung gambar");
+    const child=await graph(version,`${accountId}/media`,token,{image_url:asset.signedUrl,is_carousel_item:true});
+    if (!child.id) throw new Error("Instagram tidak mengembalikan ID item carousel");
+    await waitInstagram(version,child.id,token);
+    children.push(String(child.id));
+  }
+  const container=await graph(version,`${accountId}/media`,token,{media_type:"CAROUSEL",children:children.join(","),caption});
+  if (!container.id) throw new Error("Instagram tidak mengembalikan ID carousel");
+  await waitInstagram(version,container.id,token);
+  const published=await graph(version,`${accountId}/media_publish`,token,{creation_id:container.id});
+  if (!published.id) throw new Error("Instagram tidak mengembalikan ID posting carousel");
+  let externalUrl:string|null=null;
+  try { const info=await graph(version,String(published.id),token,{fields:"permalink"},"GET");externalUrl=info.permalink||null; } catch {}
+  return {externalId:String(published.id),externalUrl};
 }
 async function uploadHostedSession(uploadUrl:string, token:string, mediaUrl:string) {
   await jsonFetch(uploadUrl, { method:"POST", headers:{ Authorization:`OAuth ${token}`, file_url:mediaUrl } });
@@ -85,6 +105,20 @@ async function publishFacebook(version:string, pageId:string, token:string, medi
   }
   return { externalId, externalUrl };
 }
+async function publishFacebookCarousel(version:string,pageId:string,token:string,assets:Asset[],caption:string):Promise<Published> {
+  const photoIds:string[]=[];
+  for (const asset of assets) {
+    if (asset.media_type!=="image") throw new Error("Carousel Facebook saat ini hanya mendukung gambar");
+    const photo=await graph(version,`${pageId}/photos`,token,{url:asset.signedUrl,published:false});
+    if (!photo.id) throw new Error("Facebook tidak mengembalikan ID gambar carousel");
+    photoIds.push(String(photo.id));
+  }
+  const params:Record<string,any>={message:caption};
+  photoIds.forEach((id,index)=>{params[`attached_media[${index}]`]=JSON.stringify({media_fbid:id});});
+  const published=await graph(version,`${pageId}/feed`,token,params);
+  if (!published.id) throw new Error("Facebook tidak mengembalikan ID posting carousel");
+  return {externalId:String(published.id),externalUrl:null};
+}
 async function settleContent(contentId:string) {
   const { data:rows } = await db.from("publish_jobs").select("status").eq("content_item_id",contentId);
   if (!rows?.length) return;
@@ -106,18 +140,50 @@ Deno.serve(async (req) => {
   for (const job of (claimed || []) as Job[]) {
     try {
       const [{data:content,error:ce},{data:account,error:ae},{data:token,error:te}] = await Promise.all([
-        db.from("content_items").select("id,caption,media_type,primary_asset_path").eq("id",job.content_item_id).single(),
+        db.from("content_items").select("id,caption,media_type,primary_asset_path,ai_metadata").eq("id",job.content_item_id).single(),
         db.from("social_accounts").select("id,external_account_id,platform").eq("id",job.social_account_id).single(),
         db.rpc("worker_get_social_token",{p_account_id:job.social_account_id}),
       ]);
       if (ce||ae||te||!content||!account||!token) throw new Error(ce?.message||ae?.message||te?.message||"Job data/token tidak lengkap");
-      const { data:signed,error:se } = await db.storage.from("content-media").createSignedUrl((content as Content).primary_asset_path,7200);
-      if (se||!signed?.signedUrl) throw new Error(se?.message||"Signed URL gagal dibuat");
       const c=content as Content, a=account as Account;
-      const published = job.platform === "instagram"
-        ? await publishInstagram(version,a.external_account_id,token,signed.signedUrl,c.media_type,job.publish_kind,c.caption||"")
-        : await publishFacebook(version,a.external_account_id,token,signed.signedUrl,c.media_type,job.publish_kind,c.caption||"");
-      await db.from("publish_jobs").update({status:"posted",published_at:new Date().toISOString(),external_post_id:published.externalId,external_post_url:published.externalUrl,error_message:null}).eq("id",job.id);
+      const {data:assetRows,error:assetError}=await db.from("content_assets").select("storage_path,media_type,position").eq("content_item_id",job.content_item_id).order("position");
+      if (assetError) throw new Error(assetError.message);
+      const stored=(assetRows?.length?assetRows:[{storage_path:c.primary_asset_path,media_type:c.media_type,position:0}]) as Omit<Asset,"signedUrl">[];
+      const assets:Asset[]=[];
+      for (const asset of stored) {
+        const {data:signed,error:se}=await db.storage.from("content-media").createSignedUrl(asset.storage_path,7200);
+        if (se||!signed?.signedUrl) throw new Error(se?.message||"Signed URL gagal dibuat");
+        assets.push({...asset,signedUrl:signed.signedUrl});
+      }
+      const format=String(c.ai_metadata?.content_format||((job.publish_kind==="story"&&assets.length>1)?"story":"feed"));
+      let published:Published;
+      let finalMetadata=job.metadata||{};
+      if (format==="carousel"&&job.publish_kind==="feed") {
+        published=job.platform==="instagram"
+          ?await publishInstagramCarousel(version,a.external_account_id,token,assets,c.caption||"")
+          :await publishFacebookCarousel(version,a.external_account_id,token,assets,c.caption||"");
+      } else if (job.publish_kind==="story"&&assets.length>1) {
+        const completed=new Set<number>((job.metadata?.published_asset_positions||[]).map(Number));
+        const externalIds:string[]=[...(job.metadata?.story_external_ids||[]).map(String)];
+        let latest:Published={externalId:externalIds.at(-1)||"",externalUrl:null};
+        for (const asset of assets) {
+          if (completed.has(asset.position)) continue;
+          latest=job.platform==="instagram"
+            ?await publishInstagram(version,a.external_account_id,token,asset.signedUrl,asset.media_type,"story","")
+            :await publishFacebook(version,a.external_account_id,token,asset.signedUrl,asset.media_type,"story","");
+          completed.add(asset.position);externalIds.push(latest.externalId);
+          finalMetadata={...finalMetadata,published_asset_positions:[...completed].sort((x,y)=>x-y),story_external_ids:externalIds};
+          await db.from("publish_jobs").update({metadata:finalMetadata,external_post_id:latest.externalId,external_post_url:latest.externalUrl}).eq("id",job.id);
+        }
+        if (!latest.externalId) throw new Error("Story tidak menghasilkan ID publikasi");
+        published=latest;
+      } else {
+        const asset=assets[0];
+        published=job.platform==="instagram"
+          ?await publishInstagram(version,a.external_account_id,token,asset.signedUrl,asset.media_type,job.publish_kind,c.caption||"")
+          :await publishFacebook(version,a.external_account_id,token,asset.signedUrl,asset.media_type,job.publish_kind,c.caption||"");
+      }
+      await db.from("publish_jobs").update({status:"posted",published_at:new Date().toISOString(),external_post_id:published.externalId,external_post_url:published.externalUrl,error_message:null,metadata:finalMetadata}).eq("id",job.id);
       await settleContent(job.content_item_id);
       results.push({id:job.id,status:"posted",externalId:published.externalId});
     } catch (e) {

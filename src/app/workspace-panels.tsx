@@ -64,8 +64,10 @@ export function WorkspaceCalendar({ brands, content, jobs, onUpload, onJobAction
 }
 function Empty({ onUpload }: { onUpload: () => void }) { return <div className="empty-state"><FolderOpen size={32}/><h4>Belum ada item yang ditampilkan</h4><p>Ubah filter pencarian atau mulai dengan mengunggah konten.</p><button onClick={onUpload}><UploadCloud size={17}/>Upload konten</button></div>; }
 
-type RawMediaInspection = { name: string; mimeType: string; mediaType: "image" | "video"; bytes: number; width: number; height: number; durationSeconds: number | null };
+export type RawMediaInspection = { name: string; mimeType: string; mediaType: "image" | "video"; bytes: number; width: number; height: number; durationSeconds: number | null };
 export type MediaInspection = RawMediaInspection & { aspectRatio: number; errors: string[]; warnings: string[] };
+export type ContentFormat = "feed" | "carousel" | "story" | "reel";
+export type MediaSelection = { items: MediaInspection[]; errors: string[] };
 
 export function evaluateMedia(raw: RawMediaInspection, channels: string[]): MediaInspection {
   const errors: string[] = [], warnings: string[] = [];
@@ -89,6 +91,18 @@ export function evaluateMedia(raw: RawMediaInspection, channels: string[]): Medi
   return { ...raw, aspectRatio: ratio, errors, warnings };
 }
 
+export function evaluateMediaSelection(raw: RawMediaInspection[], channels: string[], format: ContentFormat): MediaSelection {
+  const items = raw.map(item => evaluateMedia(item, channels));
+  const errors = items.flatMap(item => item.errors.map(message => `${item.name}: ${message}`));
+  if ((format === "feed" || format === "reel") && items.length !== 1) errors.push("Format ini membutuhkan tepat satu berkas.");
+  if (format === "carousel" && (items.length < 2 || items.length > 10)) errors.push("Carousel membutuhkan 2–10 gambar.");
+  if (format === "story" && (items.length < 1 || items.length > 10)) errors.push("Story menerima 1–10 frame.");
+  if (format === "carousel" && items.some(item => item.mediaType !== "image")) errors.push("Carousel saat ini mendukung gambar saja.");
+  if (format === "reel" && items.some(item => item.mediaType !== "video")) errors.push("Reel membutuhkan satu video.");
+  if (format === "carousel" && new Set(items.map(item => item.aspectRatio.toFixed(2))).size > 1) errors.push("Semua gambar carousel harus memakai rasio yang sama agar tidak terpotong.");
+  return { items, errors };
+}
+
 function inspectFile(file: File): Promise<RawMediaInspection> {
   const url = URL.createObjectURL(file);
   if (file.type.startsWith("image/")) return new Promise((resolve, reject) => {
@@ -106,20 +120,28 @@ function inspectFile(file: File): Promise<RawMediaInspection> {
   });
 }
 
-export function MediaPicker({ channels, onInspectionChange }: { channels: string[]; onInspectionChange: (inspection: MediaInspection | null) => void }) {
-  const [file, setFile] = useState<File | null>(null), [preview, setPreview] = useState(""), [raw, setRaw] = useState<RawMediaInspection | null>(null), [inspectionError, setInspectionError] = useState("");
-  useEffect(() => { if (!file) { setPreview(""); return; } const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }, [file]);
+export function MediaPicker({ channels, format, onInspectionChange }: { channels: string[]; format: ContentFormat; onInspectionChange: (selection: MediaSelection | null) => void }) {
+  const [files, setFiles] = useState<File[]>([]), [previews, setPreviews] = useState<string[]>([]), [raw, setRaw] = useState<RawMediaInspection[]>([]), [inspectionError, setInspectionError] = useState("");
+  const multiple = format === "carousel" || format === "story";
+  useEffect(() => {
+    const urls = files.map(file => URL.createObjectURL(file));
+    setPreviews(urls);
+    return () => urls.forEach(url => URL.revokeObjectURL(url));
+  }, [files]);
   useEffect(() => {
     let active = true;
-    if (!file) { setRaw(null); setInspectionError(""); return () => { active = false; }; }
-    setRaw(null); setInspectionError("");
-    void inspectFile(file).then(value => { if (active) setRaw(value); }).catch(error => { if (active) setInspectionError(error instanceof Error ? error.message : "Berkas tidak dapat diperiksa."); });
+    if (!files.length) { setRaw([]); setInspectionError(""); return () => { active = false; }; }
+    setRaw([]); setInspectionError("");
+    void Promise.all(files.map(inspectFile)).then(value => { if (active) setRaw(value); }).catch(error => { if (active) setInspectionError(error instanceof Error ? error.message : "Berkas tidak dapat diperiksa."); });
     return () => { active = false; };
-  }, [file]);
-  const inspection = useMemo(() => raw ? evaluateMedia(raw, channels) : null, [raw, channels]);
-  useEffect(() => { onInspectionChange(inspection); }, [inspection, onInspectionChange]);
-  const ratio = inspection ? `${inspection.width}:${inspection.height}` : "";
-  const duration = inspection?.durationSeconds === null || inspection?.durationSeconds === undefined ? null : `${Math.floor(inspection.durationSeconds / 60)}:${Math.round(inspection.durationSeconds % 60).toString().padStart(2, "0")}`;
+  }, [files]);
+  const selection = useMemo<MediaSelection | null>(() => {
+    if (!files.length || raw.length !== files.length) return null;
+    return evaluateMediaSelection(raw, channels, format);
+  }, [files.length, raw, channels, format]);
+  useEffect(() => { onInspectionChange(selection); }, [selection, onInspectionChange]);
+  const formatHint = format === "carousel" ? "Pilih 2–10 gambar JPG" : format === "story" ? "Pilih 1–10 gambar atau video" : format === "reel" ? "Pilih satu video MP4/MOV" : "Pilih satu gambar";
+  const accept = format === "carousel" || format === "feed" ? "image/jpeg,image/png,image/webp" : format === "reel" ? "video/mp4,video/quicktime" : "image/jpeg,image/png,image/webp,video/mp4,video/quicktime";
 
-  return <div className="media-picker"><label className="file-drop"><UploadCloud size={30}/><strong>{file?.name || "Pilih gambar atau video"}</strong><span>JPG, PNG, WebP, MP4, atau MOV</span><input name="file" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" required onChange={event => setFile(event.target.files?.[0] || null)}/></label>{preview && <div className="media-preview">{file?.type.startsWith("video/") ? <video controls preload="metadata" src={preview}/> : <span className="local-image-preview"><Image src={preview} alt="Pratinjau bahan konten yang dipilih" fill sizes="(max-width: 760px) 100vw, 520px" unoptimized/></span>}<small>{((file?.size || 0) / 1024 / 1024).toFixed(1)} MB · Pratinjau berkas asli</small></div>}{file && !inspection && !inspectionError ? <div className="media-inspection loading">Memeriksa ukuran, rasio, dan durasi media…</div> : null}{inspectionError ? <div className="media-inspection error">{inspectionError}</div> : null}{inspection ? <div className={`media-inspection ${inspection.errors.length ? "error" : inspection.warnings.length ? "warning" : "ready"}`}><div className="media-facts"><b>{inspection.width} × {inspection.height} px</b><span>Rasio {ratio}</span>{duration ? <span>Durasi {duration}</span> : null}<span>{(inspection.bytes / 1024 / 1024).toFixed(1)} MB</span></div>{inspection.errors.map(message => <p key={message}><XCircle size={14}/>{message}</p>)}{inspection.warnings.map(message => <p key={message}><CircleAlert size={14}/>{message}</p>)}{!inspection.errors.length && !inspection.warnings.length ? <p><CheckCircle2 size={14}/>Media sesuai dengan channel yang dipilih.</p> : null}</div> : null}</div>;
+  return <div className="media-picker"><label className="file-drop"><UploadCloud size={30}/><strong>{files.length ? `${files.length} berkas dipilih` : formatHint}</strong><span>{format === "carousel" ? "Urutan pilihan menjadi urutan slide." : "JPG, PNG, WebP, MP4, atau MOV"}</span><input name="files" type="file" accept={accept} multiple={multiple} required onChange={event => setFiles(Array.from(event.target.files || []))}/></label>{previews.length ? <div className={`media-preview-grid ${previews.length === 1 ? "single" : ""}`}>{previews.map((preview, index) => { const file=files[index]; const inspection=selection?.items[index]; return <div className="media-preview" key={`${file.name}-${file.lastModified}`}><span className="media-order">{index+1}</span>{file.type.startsWith("video/") ? <video controls preload="metadata" src={preview}/> : <span className="local-image-preview"><Image src={preview} alt={`Pratinjau media ${index+1}`} fill sizes="(max-width: 760px) 50vw, 260px" unoptimized/></span>}<small>{file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB{inspection ? ` · ${inspection.width}×${inspection.height}` : ""}</small></div>;})}</div> : null}{files.length && !selection && !inspectionError ? <div className="media-inspection loading">Memeriksa ukuran, rasio, dan durasi semua media…</div> : null}{inspectionError ? <div className="media-inspection error">{inspectionError}</div> : null}{selection ? <div className={`media-inspection ${selection.errors.length ? "error" : selection.items.some(item=>item.warnings.length) ? "warning" : "ready"}`}>{selection.errors.map(message => <p key={message}><XCircle size={14}/>{message}</p>)}{selection.items.flatMap(item=>item.warnings.map(message=><p key={`${item.name}-${message}`}><CircleAlert size={14}/>{item.name}: {message}</p>))}{!selection.errors.length && !selection.items.some(item=>item.warnings.length) ? <p><CheckCircle2 size={14}/>{selection.items.length} media sesuai dengan format dan channel.</p> : null}</div> : null}</div>;
 }

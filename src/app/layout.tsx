@@ -5,6 +5,7 @@ import "./workspace.css";
 import "./workspace-readability.css";
 import "./schedule.css";
 import "./operations.css";
+import "./feature-tools.css";
 
 export const metadata: Metadata = {
   title: "MediaGrow Content Hub",

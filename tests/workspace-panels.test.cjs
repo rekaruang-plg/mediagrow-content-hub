@@ -10,7 +10,8 @@ require.extensions['.tsx'] = (module, filename) => {
   });
   module._compile(outputText, filename);
 };
-const { WorkspaceOverview, WorkspaceCalendar } = require('../src/app/workspace-panels.tsx');
+const { WorkspaceOverview, WorkspaceCalendar, evaluateMedia } = require('../src/app/workspace-panels.tsx');
+const { buildWorkspaceNotifications, NotificationPanel } = require('../src/app/notification-panel.tsx');
 test('one content item with mixed channel outcomes displays both jobs and the failure detail', () => {
   const common = { content_item_id: 'content-1', publish_kind: 'feed', scheduled_for: '2026-09-09T02:00:00Z' };
   const html = renderToStaticMarkup(React.createElement(WorkspaceOverview, {
@@ -72,4 +73,46 @@ test('calendar and job table include reschedule, cancel, and retry controls', ()
   assert.ok(source.includes('Batalkan'));
   assert.ok(source.includes('Coba lagi'));
   assert.ok(source.includes('onJobAction'));
+});
+
+test('media validation blocks incompatible Instagram files and warns about vertical cropping', () => {
+  const png = evaluateMedia({ name: 'square.png', mimeType: 'image/png', mediaType: 'image', bytes: 500000, width: 1080, height: 1080, durationSeconds: null }, ['ig_feed']);
+  assert.ok(png.errors.some(message => message.includes('JPG/JPEG')));
+  const story = evaluateMedia({ name: 'wide.jpg', mimeType: 'image/jpeg', mediaType: 'image', bytes: 500000, width: 1200, height: 800, durationSeconds: null }, ['ig_story']);
+  assert.equal(story.errors.length, 0);
+  assert.ok(story.warnings.some(message => message.includes('9:16')));
+  const reelImage = evaluateMedia({ name: 'reel.jpg', mimeType: 'image/jpeg', mediaType: 'image', bytes: 500000, width: 1080, height: 1920, durationSeconds: null }, ['ig_reel']);
+  assert.ok(reelImage.errors.some(message => message.includes('membutuhkan video')));
+  const unsupported = evaluateMedia({ name: 'unsafe.svg', mimeType: 'image/svg+xml', mediaType: 'image', bytes: 5000, width: 1080, height: 1080, durationSeconds: null }, ['fb_feed']);
+  assert.ok(unsupported.errors.some(message => message.includes('tidak didukung')));
+});
+
+test('notification center derives only currently actionable workspace issues', () => {
+  const now = Date.parse('2026-09-08T00:00:00Z');
+  const notifications = buildWorkspaceNotifications(
+    [{ id: 'brand-1', name: 'Gudang WPC' }],
+    [{ id: 'content-1', brand_id: 'brand-1', title: 'Promo', approval_status: 'pending_review', review_note: null, created_at: '2026-09-07T00:00:00Z' }],
+    [{ id: 'job-1', content_item_id: 'content-1', platform: 'instagram', publish_kind: 'feed', status: 'failed', error_message: 'Token invalid', scheduled_for: '2026-09-08T00:00:00Z' }],
+    [{ id: 'account-1', brand_id: 'brand-1', platform: 'instagram', username: 'gudang.interior_', display_name: null, status: 'connected', token_expires_at: '2026-09-15T00:00:00Z', last_verified_at: null, updated_at: '2026-09-08T00:00:00Z' }],
+    now,
+  );
+  assert.equal(notifications.length, 3);
+  assert.equal(notifications[0].level, 'critical');
+  assert.deepEqual(new Set(notifications.map(item => item.kind)), new Set(['review', 'publishing', 'connection']));
+  const html = renderToStaticMarkup(React.createElement(NotificationPanel, { brands: [{ id: 'brand-1', name: 'Gudang WPC' }], notifications, onNavigate() {} }));
+  assert.ok(html.includes('Pusat notifikasi'));
+  assert.ok(html.includes('Promo gagal terbit'));
+  assert.ok(html.includes('Gudang WPC'));
+});
+
+test('brand screen exposes editable brand kit through the protected RPC', () => {
+  const page = fs.readFileSync(require.resolve('../src/app/page.tsx'), 'utf8');
+  const schedule = fs.readFileSync(require.resolve('../src/app/schedule-panels.tsx'), 'utf8');
+  const migration = fs.readFileSync(require.resolve('../supabase/migrations/20260908110000_brand_kit.sql'), 'utf8');
+  assert.ok(page.includes('<BrandKitEditor'));
+  assert.ok(schedule.includes('update_brand_kit'));
+  assert.ok(schedule.includes('Simpan Brand Kit'));
+  assert.ok(migration.includes('security invoker'));
+  assert.ok(migration.includes('private.can_edit_brand'));
+  assert.ok(migration.includes('brand.kit_updated'));
 });

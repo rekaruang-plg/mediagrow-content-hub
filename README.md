@@ -40,6 +40,7 @@ Apply migrations in order:
 8. `supabase/migrations/20260908045147_internal_content_operations.sql`
 9. `supabase/migrations/20260908053000_internal_operations_indexes.sql`
 10. `supabase/migrations/20260908053500_internal_operations_scope_hardening.sql`
+11. `supabase/migrations/20260908110000_brand_kit.sql`
 
 Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
 
@@ -89,3 +90,10 @@ The Brand screen controls autopilot, minimum spacing, and one to four posting ti
 - The content library opens a signed, short-lived media preview and allows editable content to be updated and resubmitted.
 - The Team screen creates seven-day, email-bound invitation links and assigns workspace roles plus per-brand access.
 - The Activity screen records content, schedule, publication, team, and brand-rule changes without exposing Meta tokens.
+
+## Brand operations
+
+- The Brand screen stores a Brand Kit for every client: audience, tone of voice, CTA, hashtag guidance, content pillars, and prohibited claims.
+- Brand Kit edits follow brand-level access rules and are written to the activity history.
+- Upload inspects the selected image or video in the browser before storage. Blocking errors cover incompatible media/channel combinations, while crop and quality risks are shown as warnings.
+- The Notifications screen derives an actionable inbox from pending reviews, requested revisions, failed publish jobs, disconnected accounts, and tokens nearing expiry. An alert disappears automatically when its source issue is resolved.

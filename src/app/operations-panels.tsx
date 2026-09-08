@@ -43,6 +43,7 @@ const approvalLabels: Record<string, string> = {
   approved: "Disetujui",
 };
 const actionLabels: Record<string, string> = {
+  "brand.kit_updated": "memperbarui Brand Kit",
   "content.created": "membuat konten",
   "content.updated": "memperbarui konten",
   "content.submitted": "mengirim konten untuk review",

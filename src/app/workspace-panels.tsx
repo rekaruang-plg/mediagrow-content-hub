@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, CheckCircle2, Clock3, Eye, FileImage, FolderOpen, RotateCcw, Search, UploadCloud, Video, XCircle } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleAlert, Clock3, Eye, FileImage, FolderOpen, RotateCcw, Search, UploadCloud, Video, XCircle } from "lucide-react";
 
 type Brand = { id: string; name: string; niche: string | null };
 type Content = { id: string; brand_id: string; title: string; status: string; media_type: string; created_at: string };
@@ -63,8 +64,62 @@ export function WorkspaceCalendar({ brands, content, jobs, onUpload, onJobAction
 }
 function Empty({ onUpload }: { onUpload: () => void }) { return <div className="empty-state"><FolderOpen size={32}/><h4>Belum ada item yang ditampilkan</h4><p>Ubah filter pencarian atau mulai dengan mengunggah konten.</p><button onClick={onUpload}><UploadCloud size={17}/>Upload konten</button></div>; }
 
-export function MediaPicker() {
-  const [file, setFile] = useState<File | null>(null), [preview, setPreview] = useState("");
+type RawMediaInspection = { name: string; mimeType: string; mediaType: "image" | "video"; bytes: number; width: number; height: number; durationSeconds: number | null };
+export type MediaInspection = RawMediaInspection & { aspectRatio: number; errors: string[]; warnings: string[] };
+
+export function evaluateMedia(raw: RawMediaInspection, channels: string[]): MediaInspection {
+  const errors: string[] = [], warnings: string[] = [];
+  const ratio = raw.width / raw.height;
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"];
+  const targetsInstagram = channels.some(channel => channel.startsWith("ig_"));
+  const targetsVertical = channels.some(channel => channel.endsWith("story") || channel.endsWith("reel"));
+
+  if (!allowedTypes.includes(raw.mimeType)) errors.push("Format berkas tidak didukung. Gunakan JPG, PNG, WebP, MP4, atau MOV.");
+  if (raw.mediaType === "image" && channels.some(channel => channel.endsWith("reel"))) errors.push("Reel membutuhkan video, bukan gambar.");
+  if (raw.mediaType === "video" && channels.includes("ig_feed")) errors.push("Video Instagram Feed harus dipublikasikan sebagai Reel pada versi ini.");
+  if (raw.mediaType === "image" && targetsInstagram && raw.mimeType !== "image/jpeg") errors.push("Publikasi gambar Instagram melalui API membutuhkan file JPG/JPEG.");
+  if (raw.mediaType === "image" && targetsInstagram && raw.bytes > 8 * 1024 * 1024) errors.push("Gambar Instagram maksimal 8 MB.");
+  if (raw.mediaType === "video" && raw.bytes > 1024 * 1024 * 1024) errors.push("Video maksimal 1 GB sesuai batas penyimpanan sistem.");
+  if (raw.mediaType === "image" && channels.includes("ig_feed") && (ratio < 0.8 || ratio > 1.91)) errors.push("Rasio Instagram Feed harus berada antara 4:5 dan 1,91:1.");
+  if (raw.mediaType === "image" && channels.includes("ig_feed") && raw.width < 320) errors.push("Lebar gambar Instagram Feed minimal 320 piksel.");
+  if (targetsVertical && Math.abs(ratio - 9 / 16) > 0.035) warnings.push("Story/Reel paling aman memakai rasio vertikal 9:16 agar tidak terpotong.");
+  if (raw.mediaType === "image" && raw.width > 1440) warnings.push("Gambar lebih lebar dari 1.440 piksel dapat diperkecil oleh platform.");
+  if (raw.mediaType === "video" && raw.durationSeconds !== null && raw.durationSeconds < 3) warnings.push("Video sangat pendek; periksa kembali hasilnya sebelum dijadwalkan sebagai Reel.");
+  if (raw.mediaType === "video" && raw.durationSeconds !== null && raw.durationSeconds > 900) warnings.push("Video lebih dari 15 menit dapat ditolak pada jenis publikasi tertentu.");
+  return { ...raw, aspectRatio: ratio, errors, warnings };
+}
+
+function inspectFile(file: File): Promise<RawMediaInspection> {
+  const url = URL.createObjectURL(file);
+  if (file.type.startsWith("image/")) return new Promise((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => { URL.revokeObjectURL(url); resolve({ name: file.name, mimeType: file.type, mediaType: "image", bytes: file.size, width: image.naturalWidth, height: image.naturalHeight, durationSeconds: null }); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Ukuran gambar tidak dapat dibaca.")); };
+    image.src = url;
+  });
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve({ name: file.name, mimeType: file.type, mediaType: "video", bytes: file.size, width: video.videoWidth, height: video.videoHeight, durationSeconds: Number.isFinite(video.duration) ? video.duration : null }); };
+    video.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Ukuran atau durasi video tidak dapat dibaca.")); };
+    video.src = url;
+  });
+}
+
+export function MediaPicker({ channels, onInspectionChange }: { channels: string[]; onInspectionChange: (inspection: MediaInspection | null) => void }) {
+  const [file, setFile] = useState<File | null>(null), [preview, setPreview] = useState(""), [raw, setRaw] = useState<RawMediaInspection | null>(null), [inspectionError, setInspectionError] = useState("");
   useEffect(() => { if (!file) { setPreview(""); return; } const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }, [file]);
-  return <div className="media-picker"><label className="file-drop"><UploadCloud size={30}/><strong>{file?.name || "Pilih gambar atau video"}</strong><span>JPG, PNG, WebP, MP4, atau MOV</span><input name="file" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" required onChange={e => setFile(e.target.files?.[0] || null)}/></label>{preview && <div className="media-preview">{file?.type.startsWith("video/") ? <video controls preload="metadata" src={preview}/> : <img src={preview} alt="Pratinjau bahan konten yang dipilih"/>}<small>{((file?.size || 0) / 1024 / 1024).toFixed(1)} MB · Pratinjau berkas asli</small></div>}</div>;
+  useEffect(() => {
+    let active = true;
+    if (!file) { setRaw(null); setInspectionError(""); return () => { active = false; }; }
+    setRaw(null); setInspectionError("");
+    void inspectFile(file).then(value => { if (active) setRaw(value); }).catch(error => { if (active) setInspectionError(error instanceof Error ? error.message : "Berkas tidak dapat diperiksa."); });
+    return () => { active = false; };
+  }, [file]);
+  const inspection = useMemo(() => raw ? evaluateMedia(raw, channels) : null, [raw, channels]);
+  useEffect(() => { onInspectionChange(inspection); }, [inspection, onInspectionChange]);
+  const ratio = inspection ? `${inspection.width}:${inspection.height}` : "";
+  const duration = inspection?.durationSeconds === null || inspection?.durationSeconds === undefined ? null : `${Math.floor(inspection.durationSeconds / 60)}:${Math.round(inspection.durationSeconds % 60).toString().padStart(2, "0")}`;
+
+  return <div className="media-picker"><label className="file-drop"><UploadCloud size={30}/><strong>{file?.name || "Pilih gambar atau video"}</strong><span>JPG, PNG, WebP, MP4, atau MOV</span><input name="file" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" required onChange={event => setFile(event.target.files?.[0] || null)}/></label>{preview && <div className="media-preview">{file?.type.startsWith("video/") ? <video controls preload="metadata" src={preview}/> : <span className="local-image-preview"><Image src={preview} alt="Pratinjau bahan konten yang dipilih" fill sizes="(max-width: 760px) 100vw, 520px" unoptimized/></span>}<small>{((file?.size || 0) / 1024 / 1024).toFixed(1)} MB · Pratinjau berkas asli</small></div>}{file && !inspection && !inspectionError ? <div className="media-inspection loading">Memeriksa ukuran, rasio, dan durasi media…</div> : null}{inspectionError ? <div className="media-inspection error">{inspectionError}</div> : null}{inspection ? <div className={`media-inspection ${inspection.errors.length ? "error" : inspection.warnings.length ? "warning" : "ready"}`}><div className="media-facts"><b>{inspection.width} × {inspection.height} px</b><span>Rasio {ratio}</span>{duration ? <span>Durasi {duration}</span> : null}<span>{(inspection.bytes / 1024 / 1024).toFixed(1)} MB</span></div>{inspection.errors.map(message => <p key={message}><XCircle size={14}/>{message}</p>)}{inspection.warnings.map(message => <p key={message}><CircleAlert size={14}/>{message}</p>)}{!inspection.errors.length && !inspection.warnings.length ? <p><CheckCircle2 size={14}/>Media sesuai dengan channel yang dipilih.</p> : null}</div> : null}</div>;
 }

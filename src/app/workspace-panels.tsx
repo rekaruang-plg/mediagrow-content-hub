@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Building2, CalendarDays, CheckCircle2, Clock3, FileImage, FolderOpen, Search, UploadCloud, Video } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, CheckCircle2, Clock3, FileImage, FolderOpen, Search, UploadCloud, Video } from "lucide-react";
 
 type Brand = { id: string; name: string; niche: string | null };
 type Content = { id: string; brand_id: string; title: string; status: string; media_type: string; created_at: string };
@@ -25,6 +25,38 @@ export function WorkspaceOverview({ brands, content, jobs, library = false, onUp
     {library ? materials.length ? <div className="content-grid">{materials.map(c => <article className="content-tile" key={c.id}><div className="media-placeholder">{c.media_type === "video" ? <Video size={30}/> : <FileImage size={30}/>}<span>{c.media_type === "video" ? "VIDEO" : "GAMBAR"}</span></div><div className="tile-body"><small>{brandName(c.brand_id)}</small><h4>{c.title}</h4><div><Badge status={c.status}/><time>{date(c.created_at)}</time></div></div></article>)}</div> : <Empty onUpload={onUpload}/> : listed.length ? <div className="table-wrap"><table><thead><tr><th>Konten & brand</th><th>Channel</th><th>Jadwal · WIB</th><th>Status</th></tr></thead><tbody>{listed.map(j => { const c = contentMap.get(j.content_item_id); return <tr key={j.id}><td><strong>{c?.title || `Konten ${j.content_item_id.slice(0, 8)}`}</strong><small>{brandName(c?.brand_id)}</small></td><td><span className={`platform-tag ${j.platform}`}>{j.platform === "instagram" ? "IG" : "FB"}</span> <span className="channel-kind">{j.publish_kind}</span></td><td>{date(j.scheduled_for)}</td><td><Badge status={j.status}/>{j.error_message && <details className="job-error"><summary>Detail kendala</summary><p>{j.error_message}</p></details>}</td></tr>; })}</tbody></table></div> : <Empty onUpload={onUpload}/>}
     <p className="data-scope">Data yang dimuat: hingga 100 konten terbaru dan 200 jadwal terbaru. Filter brand mengikuti konten yang dimuat. Jumlah publikasi dihitung per channel.</p></section>
   </>;
+}
+
+const jakartaDateKey = (value: string | Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+const weekStart = (offset: number) => {
+  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" });
+  const [year, month, day] = formatter.format(new Date()).split("-").map(Number);
+  const today = new Date(Date.UTC(year, month - 1, day));
+  const mondayOffset = (today.getUTCDay() + 6) % 7;
+  return new Date(today.getTime() - mondayOffset * 86400000 + offset * 7 * 86400000);
+};
+const calendarDate = (value: Date) => value.toLocaleDateString("id-ID", { timeZone: "UTC", day: "numeric", month: "short" });
+const calendarDay = (value: Date) => value.toLocaleDateString("id-ID", { timeZone: "UTC", weekday: "short" });
+const calendarTime = (value: string) => new Date(value).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
+
+export function WorkspaceCalendar({ brands, content, jobs, onUpload }: { brands: Brand[]; content: Content[]; jobs: Job[]; onUpload: () => void }) {
+  const [offset, setOffset] = useState(0), [brand, setBrand] = useState("");
+  const start = weekStart(offset);
+  const dates = Array.from({ length: 7 }, (_, index) => new Date(start.getTime() + index * 86400000));
+  const contentMap = new Map(content.map(item => [item.id, item]));
+  const brandMap = new Map(brands.map(item => [item.id, item.name]));
+  const visibleJobs = jobs.filter(job => !brand || contentMap.get(job.content_item_id)?.brand_id === brand);
+  return <section className="card calendar-card">
+    <div className="calendar-toolbar"><div><h3>Kalender publikasi</h3><p>Jadwal mingguan untuk seluruh brand dan channel dalam WIB.</p></div><div className="calendar-actions"><select aria-label="Filter brand kalender" value={brand} onChange={event => setBrand(event.target.value)}><option value="">Semua brand</option>{brands.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className="icon-button" aria-label="Minggu sebelumnya" onClick={() => setOffset(value => value - 1)}><ArrowLeft size={16}/></button><button className="today-button" onClick={() => setOffset(0)}>Minggu ini</button><button className="icon-button" aria-label="Minggu berikutnya" onClick={() => setOffset(value => value + 1)}><ArrowRight size={16}/></button></div></div>
+    <div className="week-range">{calendarDate(dates[0])} – {calendarDate(dates[6])}</div>
+    <div className="calendar-scroll"><div className="week-grid">{dates.map(day => {
+      const key = day.toISOString().slice(0, 10);
+      const dayJobs = visibleJobs.filter(job => jakartaDateKey(job.scheduled_for) === key).sort((a, b) => Date.parse(a.scheduled_for) - Date.parse(b.scheduled_for));
+      const today = jakartaDateKey(new Date()) === key;
+      return <article className={today ? "calendar-day is-today" : "calendar-day"} key={key}><header><span>{calendarDay(day)}</span><b>{day.getUTCDate()}</b></header><div>{dayJobs.length ? dayJobs.map(job => {const item = contentMap.get(job.content_item_id);return <div className={`calendar-job ${job.status}`} key={job.id}><small>{calendarTime(job.scheduled_for)} · {job.platform === "instagram" ? "IG" : "FB"} {job.publish_kind}</small><strong>{item?.title || "Konten"}</strong><span>{brandMap.get(item?.brand_id || "") || "Brand"}</span></div>}) : <span className="day-empty">Belum ada jadwal</span>}</div></article>;
+    })}</div></div>
+    {!visibleJobs.length && <div className="calendar-empty"><p>Belum ada jadwal untuk pilihan ini.</p><button onClick={onUpload}><UploadCloud size={17}/>Upload konten</button></div>}
+  </section>;
 }
 function Empty({ onUpload }: { onUpload: () => void }) { return <div className="empty-state"><FolderOpen size={32}/><h4>Belum ada item yang ditampilkan</h4><p>Ubah filter pencarian atau mulai dengan mengunggah konten.</p><button onClick={onUpload}><UploadCloud size={17}/>Upload konten</button></div>; }
 

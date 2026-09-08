@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import "./workspace.css";
 import "./workspace-readability.css";
+import "./schedule.css";
 
 export const metadata: Metadata = {
   title: "MediaGrow Content Hub",

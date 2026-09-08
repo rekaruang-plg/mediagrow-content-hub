@@ -8,7 +8,7 @@ Multi-brand social content inbox and auto-publisher for Instagram and Facebook.
 2. Owner creates brands.
 3. Owner/admin selects a brand, signs in through Facebook, selects its Page and linked Instagram, and confirms the accounts.
 4. Team uploads an image/video to the private `content-media` bucket.
-5. `schedule_content()` creates independent publish jobs for each channel.
+5. The team chooses **Smart**, **Auto**, or **Manual** scheduling. `schedule_content_hybrid()` creates independent publish jobs for every connected selected channel.
 6. Supabase Cron invokes `publish-worker` every minute.
 7. Worker claims jobs atomically (`FOR UPDATE SKIP LOCKED`), creates a signed media URL, publishes to Meta, and records the post ID/URL.
 8. Failed jobs retry with exponential backoff, max 4 attempts.
@@ -36,6 +36,7 @@ Apply migrations in order:
 4. `supabase/migrations/004_content_hub_rls_helper_permissions.sql`
 5. `supabase/migrations/005_content_hub_storage_policy_path_fix.sql`
 6. `supabase/migrations/20260907160848_content_hub_meta_oauth_batch.sql`
+7. `supabase/migrations/20260908030541_hybrid_content_scheduling.sql`
 
 Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
 
@@ -68,3 +69,11 @@ Supported worker paths in V1:
 - Facebook Reel
 
 Meta permissions and account eligibility still determine whether a specific account can publish via API.
+
+## Scheduling modes
+
+- **Smart** scores the configured brand slots using successful publishing history, common high-attention time ranges, distance from today, and active queue spacing.
+- **Auto** selects the next open slot from the brand's weekly posting windows.
+- **Manual** uses the exact future date and time selected by the team.
+
+The Brand screen controls autopilot, minimum spacing, and one to four posting times for each day. The Calendar screen shows the resulting weekly queue in Asia/Jakarta time. Smart recommendations are transparent and rules-based; they do not call an external AI provider or create additional usage charges.

@@ -39,8 +39,19 @@ this patch. Do not substitute its Instagram App ID or redirect settings for Face
 Before onboarding external clients, complete the business verification, access verification and
 App Review/Advanced Access required by Meta. An app that works for its admin is not proof that
 external clients can use it. Supply real privacy, terms and data-deletion pages describing this
-service. `https://www.facebook.com/` is not a replacement for those pages; this patch does not
-claim they have been prepared or that the app has passed review.
+service. Public pages are available without login at:
+
+- Privacy Policy URL: `https://mediagrow-content-hub.vercel.app/privacy`
+- Terms of Service URL: `https://mediagrow-content-hub.vercel.app/terms`
+- User Data Deletion: select **Data Deletion Instructions URL**, then enter
+  `https://mediagrow-content-hub.vercel.app/data-deletion` (this is an HTML instructions page,
+  not a signed-request callback endpoint).
+
+The contact is the app's configured contact email, `racingpempek@gmail.com`. The operator must
+monitor it and handle verified deletion requests, including database records, uploaded files and
+pending jobs within the confirmed scope. There is no automatic deletion worker or promised
+turnaround in this patch. Review these pages against actual operations before submitting them.
+Publishing these pages does not mean Meta has approved the app or all permissions.
 
 ## Test as an owner/admin
 

@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return <html lang="id"><body>{children}</body></html>;
+  return <html lang="id"><body>{children}<footer style={{ padding: "18px 24px", textAlign: "center", fontSize: 13, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "12px 24px" }}><a href="/privacy">Kebijakan Privasi</a><a href="/data-deletion">Penghapusan Data</a><a href="/terms">Ketentuan Layanan</a></footer></body></html>;
 }

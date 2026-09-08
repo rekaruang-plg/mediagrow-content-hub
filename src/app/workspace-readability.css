@@ -1,0 +1,11 @@
+/* Keep secondary text legible on the light workspace surfaces. */
+.page-heading p,.section-heading p,.metrics article>span:not(.metric-icon),.data-scope,.inline-help,.meta-connect .connection-help{color:#70677e!important}
+.eyebrow,.overview-strip small{color:#755995}.overview-strip p{color:#756184}.overview-strip h3{color:#554369}
+.sidebar nav button{color:#6b6278}.sidebar .nav-heading,.workspace-label small,.timezone{color:#746a82}
+.filters input,.filters select,input,select,textarea{font-size:13px;color:#51475e}label,legend{font-size:12px;color:#64526f}
+input::placeholder,textarea::placeholder{color:#86798f}.check{color:#71627d;font-size:12px}.check:has(input:checked){color:#704b94}
+th{font-size:11px;color:#776b85}td{font-size:12px;color:#75657f}td small{font-size:11px;color:#80718c}.status{font-size:11px}.status.scheduled,.status.publishing,.status.retrying{color:#7751a3}.status.posted{color:#397b5c}.status.failed{color:#a35241}.status.ready{color:#526f9b}
+.tile-body>small,.tile-body time,.brand-tile p,.file-drop>span,.media-preview small{color:#807089}.tile-body time,.data-scope{font-size:10px!important}.file-drop strong{color:#6f567e}
+.empty-state p,.auth p{color:#796888}.auth .link{color:#785494}.count-pill{color:#7a668b}.auth-brand small,.brand-lockup small{color:#847190}
+.meta-connect .connected-accounts span,.meta-connect .connected-accounts>p{color:#756780}.auth .eyebrow{font-size:9px}
+@media(max-width:900px){.sidebar-bottom{display:block;position:absolute;top:17px;right:20px;margin:0;padding:0;border:0}.sidebar-bottom .workspace-label{display:none}.sidebar .logout{padding:8px 0;font-size:11px}}

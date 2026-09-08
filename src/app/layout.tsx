@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import "./workspace.css";
+import "./workspace-readability.css";
 
 export const metadata: Metadata = {
   title: "MediaGrow Content Hub",

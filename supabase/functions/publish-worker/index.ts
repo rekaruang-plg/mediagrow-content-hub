@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.115.0";
 
-type Job = { id:string; content_item_id:string; social_account_id:string; platform:"instagram"|"facebook"; publish_kind:"feed"|"story"|"reel"; scheduled_for:string; attempts:number; metadata:Record<string,any>|null };
+type Job = { id:string; content_item_id:string; social_account_id:string; platform:"instagram"|"facebook"; publish_kind:"feed"|"story"|"reel"; scheduled_for:string; attempts:number; caption:string|null; metadata:Record<string,any>|null };
 type Content = { id:string; caption:string|null; media_type:"image"|"video"; primary_asset_path:string; ai_metadata:Record<string,any>|null };
 type Account = { id:string; external_account_id:string; platform:"instagram"|"facebook" };
 type Asset = { storage_path:string; media_type:"image"|"video"; position:number; signedUrl:string };
@@ -156,12 +156,13 @@ Deno.serve(async (req) => {
         assets.push({...asset,signedUrl:signed.signedUrl});
       }
       const format=String(c.ai_metadata?.content_format||((job.publish_kind==="story"&&assets.length>1)?"story":"feed"));
+      const publishCaption=job.caption??c.caption??"";
       let published:Published;
       let finalMetadata=job.metadata||{};
       if (format==="carousel"&&job.publish_kind==="feed") {
         published=job.platform==="instagram"
-          ?await publishInstagramCarousel(version,a.external_account_id,token,assets,c.caption||"")
-          :await publishFacebookCarousel(version,a.external_account_id,token,assets,c.caption||"");
+          ?await publishInstagramCarousel(version,a.external_account_id,token,assets,publishCaption)
+          :await publishFacebookCarousel(version,a.external_account_id,token,assets,publishCaption);
       } else if (job.publish_kind==="story"&&assets.length>1) {
         const completed=new Set<number>((job.metadata?.published_asset_positions||[]).map(Number));
         const externalIds:string[]=[...(job.metadata?.story_external_ids||[]).map(String)];
@@ -180,8 +181,8 @@ Deno.serve(async (req) => {
       } else {
         const asset=assets[0];
         published=job.platform==="instagram"
-          ?await publishInstagram(version,a.external_account_id,token,asset.signedUrl,asset.media_type,job.publish_kind,c.caption||"")
-          :await publishFacebook(version,a.external_account_id,token,asset.signedUrl,asset.media_type,job.publish_kind,c.caption||"");
+          ?await publishInstagram(version,a.external_account_id,token,asset.signedUrl,asset.media_type,job.publish_kind,publishCaption)
+          :await publishFacebook(version,a.external_account_id,token,asset.signedUrl,asset.media_type,job.publish_kind,publishCaption);
       }
       await db.from("publish_jobs").update({status:"posted",published_at:new Date().toISOString(),external_post_id:published.externalId,external_post_url:published.externalUrl,error_message:null,metadata:finalMetadata}).eq("id",job.id);
       await settleContent(job.content_item_id);

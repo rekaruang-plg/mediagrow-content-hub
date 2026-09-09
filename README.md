@@ -44,6 +44,7 @@ Apply migrations in order:
 12. `supabase/migrations/20260908165338_carousel_and_story_assets.sql`
 13. `supabase/migrations/20260909050625_content_planner_team_workflow.sql`
 14. `supabase/migrations/20260909050838_content_planner_foreign_key_indexes.sql`
+15. `supabase/migrations/20260909111951_channel_customization_calendar_tools.sql`
 
 Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
 
@@ -85,7 +86,7 @@ Meta permissions and account eligibility still determine whether a specific acco
 - **Auto** selects the next open slot from the brand's weekly posting windows.
 - **Manual** uses the exact future date and time selected by the team.
 
-The Brand screen controls autopilot, minimum spacing, and one to four posting times for each day. The Calendar screen shows the resulting weekly queue in Asia/Jakarta time. Smart recommendations are transparent and rules-based; they do not call an external AI provider or create additional usage charges.
+The Brand screen controls autopilot, minimum spacing, and one to four posting times for each day. The Calendar screen shows weekly and monthly views in Asia/Jakarta time. Queued cards can be dragged to another future date while preserving their time, and clicking a card opens the exact-time editor. Smart recommendations are transparent and rules-based; they do not call an external AI provider or create additional usage charges.
 
 ## Internal team workflow
 
@@ -93,6 +94,7 @@ The Brand screen controls autopilot, minimum spacing, and one to four posting ti
 - Content stores its requested channels and scheduling mode. Approval automatically creates the intended jobs using the latest brand rules.
 - The calendar can reschedule or cancel queued jobs. Failed jobs can be retried manually after the underlying Meta issue is fixed.
 - The content library opens a signed, short-lived media preview and allows editable content to be updated and resubmitted.
+- Library and calendar cards show short-lived image thumbnails. Existing content can be duplicated into a safe draft that reuses its private media references but never copies active publish jobs.
 - The Team screen creates seven-day, email-bound invitation links and assigns workspace roles plus per-brand access.
 - The Activity screen records content, schedule, publication, team, and brand-rule changes without exposing Meta tokens.
 
@@ -111,6 +113,12 @@ The Brand screen controls autopilot, minimum spacing, and one to four posting ti
 - Vercel deployments authenticate AI Gateway with project OIDC automatically. For local generation, link the project and run `vercel env pull`, or set `AI_GATEWAY_API_KEY` locally. `AI_CAPTION_MODEL` can optionally override the default model.
 - Requests require a valid Supabase user token, run brand queries under RLS, enforce short input limits, filter prohibited Brand Kit terms, and ask AI Gateway not to route prompts to training-enabled providers.
 - If AI Gateway is temporarily unavailable, the endpoint returns three Brand Kit-based templates so the upload flow can continue.
+
+## Channel-specific publishing
+
+- A master caption and schedule remain the default, while each selected Instagram or Facebook channel can override its own caption and publication time.
+- Empty channel overrides deliberately fall back to the master values, preserving all existing content behavior.
+- Overrides survive approval and editing, and the worker reads the final caption from each independent publish job.
 
 ## Content Planner
 

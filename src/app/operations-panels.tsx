@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Activity, Check, Clipboard, Clock3, Eye, History, Link2, LoaderCircle, RotateCcw, Send, ShieldCheck, Trash2, UserPlus, Users, X, XCircle } from "lucide-react";
+import { Activity, Check, Clipboard, Clock3, Copy, Eye, History, Link2, LoaderCircle, RotateCcw, Send, ShieldCheck, Trash2, UserPlus, Users, X, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { ChannelCustomizer, storedSettingsToOverrides, type ChannelOverrides, type StoredChannelSetting } from "./channel-customizer";
 
 export type OperationsBrand = { id: string; name: string; niche: string | null };
 export type OperationsContent = {
@@ -17,7 +18,7 @@ export type OperationsContent = {
   review_note: string | null;
   media_type: string;
   primary_asset_path: string;
-  ai_metadata?: { content_format?: string; asset_count?: number } | null;
+  ai_metadata?: { content_format?: string; asset_count?: number; requested_channels?: string[]; requested_scheduled_for?: string | null; requested_channel_settings?: StoredChannelSetting[] } | null;
   content_assets?: { storage_path: string; media_type: string; position: number }[];
   created_at: string;
 };
@@ -48,6 +49,8 @@ const actionLabels: Record<string, string> = {
   "brand.kit_updated": "memperbarui Brand Kit",
   "content.created": "membuat konten",
   "content.updated": "memperbarui konten",
+  "content.channels_updated": "memperbarui caption atau jadwal channel",
+  "content.duplicated": "menduplikat konten",
   "content.submitted": "mengirim konten untuk review",
   "content.reviewed": "meninjau konten",
   "content.scheduled": "menjadwalkan konten",
@@ -203,17 +206,19 @@ export function TeamPanel({ organizationId, brands, currentUserId }: { organizat
   </section>;
 }
 
-export function ContentDetailModal({ content, brandName, busy, onClose, onSave, onSubmit }: {
+export function ContentDetailModal({ content, brandName, busy, onClose, onSave, onSubmit, onDuplicate }: {
   content: OperationsContent;
   brandName: string;
   busy: boolean;
   onClose: () => void;
-  onSave: (contentId: string, title: string, brief: string, caption: string) => Promise<void>;
+  onSave: (contentId: string, title: string, brief: string, caption: string, overrides: ChannelOverrides) => Promise<void>;
   onSubmit: (contentId: string) => Promise<void>;
+  onDuplicate: (contentId: string) => Promise<void>;
 }) {
   const [title, setTitle] = useState(content.title);
   const [brief, setBrief] = useState(content.brief || "");
   const [caption, setCaption] = useState(content.caption || "");
+  const [channelOverrides, setChannelOverrides] = useState<ChannelOverrides>(() => storedSettingsToOverrides(content.ai_metadata?.requested_channel_settings));
   const [mediaUrls, setMediaUrls] = useState<{ url: string; mediaType: string }[]>([]);
   const [mediaError, setMediaError] = useState("");
   useEffect(() => {
@@ -228,8 +233,10 @@ export function ContentDetailModal({ content, brandName, busy, onClose, onSave, 
   }, [content]);
   const editable = !["publishing","posted"].includes(content.status);
   const canResubmit = ["draft","changes_requested"].includes(content.approval_status);
+  const requestedChannels = content.ai_metadata?.requested_channels || [];
+  const mainTime = content.ai_metadata?.requested_scheduled_for ? formatDate(content.ai_metadata.requested_scheduled_for) + " WIB" : "";
   return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="content-modal" role="dialog" aria-modal="true" aria-labelledby="content-modal-title">
     <header><div><small>{brandName} · {approvalLabels[content.approval_status] || content.approval_status}</small><h3 id="content-modal-title">Preview & detail konten</h3></div><button className="icon-button" aria-label="Tutup detail konten" onClick={onClose}><X size={18}/></button></header>
-    <div className="content-modal-grid"><div className={mediaUrls.length>1?"stored-media-preview multi":"stored-media-preview"}>{mediaUrls.length?mediaUrls.map((media,index)=><div className="stored-media-frame" key={media.url}><span>{index+1}</span>{media.mediaType==="video"?<video controls preload="metadata" src={media.url}/>:<Image src={media.url} alt={`Preview ${content.title} ${index+1}`} fill sizes="(max-width: 760px) 100vw, 45vw" unoptimized/>}</div>):<div>{mediaError||"Memuat preview…"}</div>}</div><form onSubmit={event => { event.preventDefault(); void onSave(content.id,title,brief,caption); }}><label>Judul<input value={title} onChange={event => setTitle(event.target.value)} disabled={!editable} required/></label><label>Brief<textarea rows={3} value={brief} onChange={event => setBrief(event.target.value)} disabled={!editable}/></label><label>Caption<textarea rows={8} value={caption} onChange={event => setCaption(event.target.value)} disabled={!editable}/></label>{content.review_note ? <div className="review-note"><RotateCcw size={16}/><div><b>Catatan revisi</b><p>{content.review_note}</p></div></div> : null}<div className="modal-actions">{editable ? <button disabled={busy}>Simpan perubahan</button> : null}{canResubmit ? <button type="button" className="secondary" disabled={busy} onClick={() => void onSubmit(content.id)}><Send size={15}/>Kirim untuk review</button> : null}</div></form></div>
+    <div className="content-modal-grid"><div className={mediaUrls.length>1?"stored-media-preview multi":"stored-media-preview"}>{mediaUrls.length?mediaUrls.map((media,index)=><div className="stored-media-frame" key={media.url}><span>{index+1}</span>{media.mediaType==="video"?<video controls preload="metadata" src={media.url}/>:<Image src={media.url} alt={`Preview ${content.title} ${index+1}`} fill sizes="(max-width: 760px) 100vw, 45vw" unoptimized/>}</div>):<div>{mediaError||"Memuat preview…"}</div>}</div><form onSubmit={event => { event.preventDefault(); void onSave(content.id,title,brief,caption,channelOverrides); }}><label>Judul<input value={title} onChange={event => setTitle(event.target.value)} disabled={!editable} required/></label><label>Brief<textarea rows={3} value={brief} onChange={event => setBrief(event.target.value)} disabled={!editable}/></label><label>Caption utama<textarea rows={8} value={caption} onChange={event => setCaption(event.target.value)} disabled={!editable}/></label>{requestedChannels.length?<ChannelCustomizer channels={requestedChannels} masterCaption={caption} masterTime={mainTime} overrides={channelOverrides} onChange={setChannelOverrides} disabled={!editable}/>:null}{content.review_note ? <div className="review-note"><RotateCcw size={16}/><div><b>Catatan revisi</b><p>{content.review_note}</p></div></div> : null}<div className="modal-actions">{editable ? <button disabled={busy}>Simpan perubahan</button> : null}{canResubmit ? <button type="button" className="secondary" disabled={busy} onClick={() => void onSubmit(content.id)}><Send size={15}/>Kirim untuk review</button> : null}<button type="button" className="secondary" disabled={busy} onClick={() => void onDuplicate(content.id)}><Copy size={15}/>Duplikat sebagai draf</button></div></form></div>
   </section></div>;
 }

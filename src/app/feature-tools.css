@@ -208,6 +208,28 @@
 .caption-variants article p { max-height: 210px; margin: 0; overflow: auto; color: #4f4855; font-size: .84rem; line-height: 1.6; white-space: pre-wrap; }
 .caption-variants article button { justify-self: start; width: auto; margin: 0; }
 .caption-disclaimer { margin: 0; color: #82778b; font-size: .72rem; line-height: 1.45; }
+.channel-customizer { grid-column: 1/-1; display: grid; gap: 12px; padding: 17px; border: 1px solid #e4dcef; border-radius: 13px; background: #faf8fd; }
+.channel-customizer-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.channel-customizer-heading > div { display: grid; gap: 4px; }
+.channel-customizer-heading b { color: #584866; font-size: 12px; }
+.channel-customizer-heading small { color: #8d8195; font-size: 9px; }
+.channel-customizer-heading > span { padding: 5px 8px; border-radius: 7px; background: #eee7f8; color: #7659a5; font-size: 8px; font-weight: 750; }
+.channel-customizer-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 11px; }
+.channel-customizer-grid > article { display: grid; align-content: start; gap: 10px; padding: 14px; border: 1px solid #ebe5f0; border-radius: 11px; background: white; }
+.channel-customizer-grid header { display: flex; align-items: center; gap: 9px; }
+.channel-customizer-grid header > span { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; color: white; }
+.channel-customizer-grid header > span.instagram { background: #bd4f89; }
+.channel-customizer-grid header > span.facebook { background: #3974c6; }
+.channel-customizer-grid header div { display: grid; gap: 3px; }
+.channel-customizer-grid header b { color: #55475f; font-size: 10px; }
+.channel-customizer-grid header small,.channel-fallback-time { color: #958a9c; font-size: 8px; }
+.channel-customizer-grid textarea { min-height: 82px; }
+.channel-customizer-grid button { justify-self: start; }
+.channel-fallback-time { display: flex; align-items: center; min-height: 30px; }
+.media-placeholder { position: relative; overflow: hidden; }
+.media-placeholder img { object-fit: cover; }
+.tile-body .tile-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 14px; }
+.tile-body .tile-actions button { width: 100%; padding: 9px 8px; font-size: 9px; }
 
 @media (max-width: 760px) {
   .brand-kit-grid,
@@ -220,4 +242,6 @@
   .media-preview-grid { grid-template-columns: 1fr; }
   .caption-goals { grid-template-columns: 1fr; }
   .caption-assistant .caption-generate, .caption-variants article button { width: 100%; }
+  .channel-customizer-grid { grid-template-columns: 1fr; }
+  .tile-body .tile-actions { grid-template-columns: 1fr; }
 }

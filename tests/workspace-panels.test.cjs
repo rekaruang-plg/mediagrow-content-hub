@@ -13,6 +13,7 @@ require.extensions['.tsx'] = (module, filename) => {
 const { WorkspaceOverview, WorkspaceCalendar, evaluateMedia, evaluateMediaSelection } = require('../src/app/workspace-panels.tsx');
 const { buildWorkspaceNotifications, NotificationPanel } = require('../src/app/notification-panel.tsx');
 const { CaptionAssistant } = require('../src/app/caption-assistant.tsx');
+const { ChannelCustomizer, serializeChannelOverrides } = require('../src/app/channel-customizer.tsx');
 const { ContentPlanner } = require('../src/app/planner-panel.tsx');
 test('one content item with mixed channel outcomes displays both jobs and the failure detail', () => {
   const common = { content_item_id: 'content-1', publish_kind: 'feed', scheduled_for: '2026-09-09T02:00:00Z' };
@@ -79,8 +80,52 @@ test('upload source exposes manual, auto, and smart scheduling through the atomi
   assert.ok(source.includes('value="smart"'));
   assert.ok(source.includes('value="auto"'));
   assert.ok(source.includes('value="manual"'));
-  assert.ok(source.includes('create_content_with_assets'));
+  assert.ok(source.includes('create_content_with_channel_settings'));
   assert.ok(source.includes('recommend_content_schedule'));
+});
+
+test('channel customization keeps independent captions and future times', () => {
+  const future = new Date(Date.now() + 86400000);
+  const local = new Date(future.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 16);
+  const settings = serializeChannelOverrides(['ig_feed', 'fb_feed'], {
+    ig_feed: { caption: 'Caption khusus Instagram', scheduledFor: local },
+    fb_feed: { caption: '', scheduledFor: '' },
+  });
+  assert.equal(settings[0].caption, 'Caption khusus Instagram');
+  assert.ok(Date.parse(settings[0].scheduled_for) > Date.now());
+  assert.equal(settings[1].caption, null);
+  const html = renderToStaticMarkup(React.createElement(ChannelCustomizer, {
+    channels: ['ig_feed', 'fb_feed'], masterCaption: 'Caption utama', masterTime: '18.30 WIB', overrides: {}, onChange() {},
+  }));
+  assert.ok(html.includes('Penyesuaian per channel'));
+  assert.ok(html.includes('Instagram Feed'));
+  assert.ok(html.includes('Facebook Feed'));
+  assert.equal((html.match(/Caption khusus/g) || []).length, 2);
+});
+
+test('calendar exposes monthly view, thumbnails, and drag rescheduling', () => {
+  const scheduledFor = new Date(Date.now() + 86400000).toISOString();
+  const html = renderToStaticMarkup(React.createElement(WorkspaceCalendar, {
+    brands: [{ id: 'brand-1', name: 'Visual Brand', niche: null }],
+    content: [{ id: 'content-1', brand_id: 'brand-1', title: 'Visual Post', media_type: 'image', status: 'scheduled', created_at: scheduledFor }],
+    jobs: [{ id: 'job-1', content_item_id: 'content-1', platform: 'instagram', publish_kind: 'feed', scheduled_for: scheduledFor, status: 'scheduled', error_message: null }],
+    thumbnailUrls: { 'content-1': 'https://example.com/thumb.jpg' }, onUpload() {}, async onJobAction() {},
+  }));
+  assert.ok(html.includes('>Bulan<'));
+  assert.ok(html.includes('Seret kartu ke tanggal lain'));
+  assert.ok(html.includes('draggable="true"'));
+  assert.ok(html.includes('thumb.jpg'));
+});
+
+test('library exposes safe content duplication with a thumbnail', () => {
+  const createdAt = new Date().toISOString();
+  const html = renderToStaticMarkup(React.createElement(WorkspaceOverview, {
+    brands: [{ id: 'brand-1', name: 'Library Brand', niche: null }],
+    content: [{ id: 'content-1', brand_id: 'brand-1', title: 'Source Post', media_type: 'image', status: 'draft', created_at: createdAt }],
+    jobs: [], library: true, thumbnailUrls: { 'content-1': 'https://example.com/library.jpg' }, onUpload() {}, onOpenContent() {}, async onDuplicate() {},
+  }));
+  assert.ok(html.includes('Thumbnail Source Post'));
+  assert.ok(html.includes('Duplikat'));
 });
 
 test('carousel and Story selections enforce format-specific asset rules', () => {
@@ -98,6 +143,16 @@ test('worker contains resumable multi-frame Story and carousel publishing flows'
   assert.ok(worker.includes('attached_media['));
   assert.ok(worker.includes('published_asset_positions'));
   assert.ok(worker.includes('content_assets'));
+  assert.ok(worker.includes('job.caption??c.caption'));
+});
+
+test('channel customization migration protects RPCs and duplicates into drafts', () => {
+  const migration = fs.readFileSync(require.resolve('../supabase/migrations/20260909111951_channel_customization_calendar_tools.sql'), 'utf8');
+  assert.ok(migration.includes('create_content_with_channel_settings'));
+  assert.ok(migration.includes('update_content_customization'));
+  assert.ok(migration.includes('duplicate_content_item'));
+  assert.ok(migration.includes("source.primary_asset_path, 'ready', 'draft'"));
+  assert.ok(migration.includes('revoke execute on function private.apply_channel_settings'));
 });
 
 test('internal operations expose approval, job management, activity, and team workflows', () => {

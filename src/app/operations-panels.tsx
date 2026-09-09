@@ -62,6 +62,10 @@ const actionLabels: Record<string, string> = {
   "team.brand_access_updated": "mengubah akses brand",
   "team.invite_revoked": "membatalkan undangan",
   "brand.rules_updated": "memperbarui aturan brand",
+  "content_plan.created": "membuat rencana konten",
+  "content_plan.updated": "memperbarui rencana konten",
+  "content_plan.commented": "menambahkan komentar di rencana konten",
+  "content_plan.linked": "menghubungkan rencana ke konten",
 };
 const formatDate = (value: string) => new Date(value).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 

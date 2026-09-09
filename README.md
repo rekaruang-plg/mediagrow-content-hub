@@ -42,6 +42,8 @@ Apply migrations in order:
 10. `supabase/migrations/20260908053500_internal_operations_scope_hardening.sql`
 11. `supabase/migrations/20260908110000_brand_kit.sql`
 12. `supabase/migrations/20260908165338_carousel_and_story_assets.sql`
+13. `supabase/migrations/20260909050625_content_planner_team_workflow.sql`
+14. `supabase/migrations/20260909050838_content_planner_foreign_key_indexes.sql`
 
 Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
 
@@ -109,3 +111,10 @@ The Brand screen controls autopilot, minimum spacing, and one to four posting ti
 - Vercel deployments authenticate AI Gateway with project OIDC automatically. For local generation, link the project and run `vercel env pull`, or set `AI_GATEWAY_API_KEY` locally. `AI_CAPTION_MODEL` can optionally override the default model.
 - Requests require a valid Supabase user token, run brand queries under RLS, enforce short input limits, filter prohibited Brand Kit terms, and ask AI Gateway not to route prompts to training-enabled providers.
 - If AI Gateway is temporarily unavailable, the endpoint returns three Brand Kit-based templates so the upload flow can continue.
+
+## Content Planner
+
+- The Content Planner tracks every idea through copywriting, design, review, approval, scheduling, and publication.
+- Each plan stores a brand, Awareness/Trust/Sales objective, content pillar, format, PIC, deadline, and target publish time.
+- Team members can discuss a plan in one thread. Overdue and near-deadline work appears automatically in Notifications.
+- **Continue to upload** carries the brand, title, brief, format, and planned time into Upload; after creation, the plan follows the linked content's approval and publishing status.

@@ -13,6 +13,7 @@ require.extensions['.tsx'] = (module, filename) => {
 const { WorkspaceOverview, WorkspaceCalendar, evaluateMedia, evaluateMediaSelection } = require('../src/app/workspace-panels.tsx');
 const { buildWorkspaceNotifications, NotificationPanel } = require('../src/app/notification-panel.tsx');
 const { CaptionAssistant } = require('../src/app/caption-assistant.tsx');
+const { ContentPlanner } = require('../src/app/planner-panel.tsx');
 test('one content item with mixed channel outcomes displays both jobs and the failure detail', () => {
   const common = { content_item_id: 'content-1', publish_kind: 'feed', scheduled_for: '2026-09-09T02:00:00Z' };
   const html = renderToStaticMarkup(React.createElement(WorkspaceOverview, {
@@ -121,6 +122,44 @@ test('notification center derives only currently actionable workspace issues', (
   assert.ok(html.includes('Pusat notifikasi'));
   assert.ok(html.includes('Promo gagal terbit'));
   assert.ok(html.includes('Gudang WPC'));
+});
+
+test('content planner renders objective, PIC, deadline, and workflow lanes', () => {
+  const now = Date.now();
+  const html = renderToStaticMarkup(React.createElement(ContentPlanner, {
+    brands: [{ id: 'brand-1', name: 'Gudang WPC', niche: 'Interior' }],
+    plans: [{ id: 'plan-1', brand_id: 'brand-1', created_by: 'user-1', assignee_id: 'user-1', title: 'Promo September', brief: 'Highlight produk', objective: 'sales', content_pillar: 'Promo bulanan', content_format: 'carousel', status: 'design', due_at: new Date(now + 86400000).toISOString(), planned_for: new Date(now + 172800000).toISOString(), content_item_id: null, created_at: new Date(now).toISOString(), updated_at: new Date(now).toISOString() }],
+    comments: [],
+    members: [{ user_id: 'user-1', display_name: 'Doni', email: 'doni@example.com', role: 'owner', brand_access: [] }],
+    currentUserId: 'user-1', currentRole: 'owner', busy: false,
+    async onCreate() { return true; }, async onUpdate() {}, async onComment() {}, onStartUpload() {},
+  }));
+  assert.ok(html.includes('Content Planner'));
+  assert.ok(html.includes('Promo September'));
+  assert.ok(html.includes('Sales'));
+  assert.ok(html.includes('Doni'));
+  assert.ok(html.includes('Produksi'));
+});
+
+test('deadline notifications route overdue planner work to the planner', () => {
+  const now = Date.parse('2026-09-09T05:00:00Z');
+  const notifications = buildWorkspaceNotifications(
+    [{ id: 'brand-1', name: 'Gudang WPC' }], [], [], [], now,
+    [{ id: 'plan-1', brand_id: 'brand-1', title: 'Carousel promo', status: 'design', due_at: '2026-09-09T04:00:00Z', updated_at: '2026-09-08T00:00:00Z' }],
+  );
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].kind, 'planning');
+  assert.equal(notifications[0].target, 'planner');
+  assert.equal(notifications[0].level, 'critical');
+});
+
+test('planner database migration restricts writes to protected RPCs', () => {
+  const migration = fs.readFileSync(require.resolve('../supabase/migrations/20260909050625_content_planner_team_workflow.sql'), 'utf8');
+  assert.ok(migration.includes('alter table public.content_plans enable row level security'));
+  assert.ok(migration.includes('create_content_plan'));
+  assert.ok(migration.includes('add_content_plan_comment'));
+  assert.ok(migration.includes('link_content_plan'));
+  assert.ok(migration.includes('revoke all on public.content_plans from public,anon,authenticated'));
 });
 
 test('brand screen exposes editable brand kit through the protected RPC', () => {

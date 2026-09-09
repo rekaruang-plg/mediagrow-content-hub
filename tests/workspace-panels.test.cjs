@@ -43,7 +43,35 @@ test('weekly calendar renders a scheduled job with brand and channel context', (
   assert.ok(html.includes('Kalender publikasi'));
   assert.ok(html.includes('Calendar Content'));
   assert.ok(html.includes('Calendar Brand'));
-  assert.ok(html.includes('IG feed'));
+  assert.ok(html.includes('>IG<'));
+  assert.ok(html.includes('>Feed<'));
+  assert.ok(html.includes('--calendar-brand'));
+});
+
+test('calendar distinguishes brand colors and Feed, Carousel, Story, and Reel icons', () => {
+  const scheduledFor = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const jobs = [
+    { id: 'feed-job', content_item_id: 'feed', platform: 'instagram', publish_kind: 'feed' },
+    { id: 'carousel-job', content_item_id: 'carousel', platform: 'facebook', publish_kind: 'feed' },
+    { id: 'story-job', content_item_id: 'story', platform: 'instagram', publish_kind: 'story' },
+    { id: 'reel-job', content_item_id: 'reel', platform: 'instagram', publish_kind: 'reel' },
+  ].map(job => ({ ...job, scheduled_for: scheduledFor, status: 'scheduled', error_message: null }));
+  const content = [
+    { id: 'feed', brand_id: 'brand-1', title: 'Feed tunggal', content_assets: [{ position: 0 }] },
+    { id: 'carousel', brand_id: 'brand-2', title: 'Carousel promo', content_assets: [{ position: 0 }, { position: 1 }] },
+    { id: 'story', brand_id: 'brand-1', title: 'Story harian', content_assets: [{ position: 0 }] },
+    { id: 'reel', brand_id: 'brand-2', title: 'Reel proyek', content_assets: [{ position: 0 }] },
+  ].map(item => ({ ...item, media_type: 'image', status: 'scheduled', created_at: scheduledFor }));
+  const html = renderToStaticMarkup(React.createElement(WorkspaceCalendar, {
+    brands: [{ id: 'brand-1', name: 'Reka Ruang', niche: null }, { id: 'brand-2', name: 'Gudang WPC', niche: null }],
+    content, jobs, onUpload() {},
+  }));
+  assert.ok(html.includes('WARNA BRAND'));
+  assert.ok(html.includes('FORMAT'));
+  for (const format of ['Feed', 'Carousel', 'Story', 'Reel']) assert.ok(html.includes(`>${format}<`));
+  assert.equal((html.match(/--calendar-brand:/g) || []).length, 4);
+  assert.ok(html.includes('--calendar-brand:#7553d4'));
+  assert.ok(html.includes('--calendar-brand:#d65f83'));
 });
 
 test('upload source exposes manual, auto, and smart scheduling through the atomic content RPC', () => {

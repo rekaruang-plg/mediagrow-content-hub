@@ -1,10 +1,11 @@
 "use client";
 import Image from "next/image";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleAlert, Clock3, Eye, FileImage, FolderOpen, RotateCcw, Search, UploadCloud, Video, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, CheckCircle2, CircleAlert, Clock3, Eye, FileImage, FolderOpen, Images, RectangleVertical, RotateCcw, Search, UploadCloud, Video, XCircle } from "lucide-react";
 
 type Brand = { id: string; name: string; niche: string | null };
-type Content = { id: string; brand_id: string; title: string; status: string; media_type: string; created_at: string };
+type Content = { id: string; brand_id: string; title: string; status: string; media_type: string; created_at: string; content_assets?: { position?: number }[] };
 export type WorkspaceJob = { id: string; content_item_id: string; platform: string; publish_kind: string; scheduled_for: string; status: string; error_message: string | null };
 type JobAction = "reschedule" | "cancel" | "retry";
 const names: Record<string, string> = { ready: "Siap", draft: "Draf", scheduled: "Terjadwal", retrying: "Dicoba ulang", publishing: "Dipublikasikan…", posted: "Terbit", failed: "Gagal", cancelled: "Dibatalkan", archived: "Diarsipkan" };
@@ -40,6 +41,32 @@ const weekStart = (offset: number) => {
 const calendarDate = (value: Date) => value.toLocaleDateString("id-ID", { timeZone: "UTC", day: "numeric", month: "short" });
 const calendarDay = (value: Date) => value.toLocaleDateString("id-ID", { timeZone: "UTC", weekday: "short" });
 const calendarTime = (value: string) => new Date(value).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
+const calendarBrandThemes = [
+  { accent: "#7553d4", soft: "#f2edff", ink: "#5638a5" },
+  { accent: "#d65f83", soft: "#fff0f5", ink: "#a33e61" },
+  { accent: "#268b7a", soft: "#eaf8f5", ink: "#176b5e" },
+  { accent: "#d17a28", soft: "#fff4e8", ink: "#995717" },
+  { accent: "#3478c5", soft: "#edf5ff", ink: "#245c9b" },
+  { accent: "#aa6548", soft: "#fff1eb", ink: "#81452e" },
+  { accent: "#6d7f24", soft: "#f3f7e6", ink: "#53631a" },
+  { accent: "#8b5ca8", soft: "#f7effc", ink: "#6b3e87" },
+] as const;
+const calendarFormatMeta = {
+  feed: { label: "Feed", icon: FileImage },
+  carousel: { label: "Carousel", icon: Images },
+  story: { label: "Story", icon: RectangleVertical },
+  reel: { label: "Reel", icon: Video },
+} as const;
+type CalendarFormat = keyof typeof calendarFormatMeta;
+const calendarFormat = (job: WorkspaceJob, item?: Content): CalendarFormat => {
+  if (job.publish_kind === "story") return "story";
+  if (job.publish_kind === "reel") return "reel";
+  return (item?.content_assets?.length || 0) > 1 ? "carousel" : "feed";
+};
+const calendarBrandStyle = (brandId: string, brandOrder: Map<string, number>) => {
+  const theme = calendarBrandThemes[(brandOrder.get(brandId) || 0) % calendarBrandThemes.length];
+  return { "--calendar-brand": theme.accent, "--calendar-brand-soft": theme.soft, "--calendar-brand-ink": theme.ink } as CSSProperties;
+};
 
 export function WorkspaceCalendar({ brands, content, jobs, onUpload, onJobAction }: { brands: Brand[]; content: Content[]; jobs: WorkspaceJob[]; onUpload: () => void; onJobAction?: (jobId: string, action: JobAction, scheduledFor?: string) => Promise<void> }) {
   const [offset, setOffset] = useState(0), [brand, setBrand] = useState("");
@@ -48,15 +75,18 @@ export function WorkspaceCalendar({ brands, content, jobs, onUpload, onJobAction
   const dates = Array.from({ length: 7 }, (_, index) => new Date(start.getTime() + index * 86400000));
   const contentMap = new Map(content.map(item => [item.id, item]));
   const brandMap = new Map(brands.map(item => [item.id, item.name]));
+  const brandOrder = new Map(brands.map((item, index) => [item.id, index]));
   const visibleJobs = jobs.filter(job => !brand || contentMap.get(job.content_item_id)?.brand_id === brand);
+  const visibleBrands = brand ? brands.filter(item => item.id === brand) : brands;
   return <section className="card calendar-card">
     <div className="calendar-toolbar"><div><h3>Kalender publikasi</h3><p>Jadwal mingguan untuk seluruh brand dan channel dalam WIB.</p></div><div className="calendar-actions"><select aria-label="Filter brand kalender" value={brand} onChange={event => setBrand(event.target.value)}><option value="">Semua brand</option>{brands.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className="icon-button" aria-label="Minggu sebelumnya" onClick={() => setOffset(value => value - 1)}><ArrowLeft size={16}/></button><button className="today-button" onClick={() => setOffset(0)}>Minggu ini</button><button className="icon-button" aria-label="Minggu berikutnya" onClick={() => setOffset(value => value + 1)}><ArrowRight size={16}/></button></div></div>
+    <div className="calendar-legends" aria-label="Legenda kalender"><div className="brand-legend"><b>WARNA BRAND</b>{visibleBrands.map(item => <span key={item.id}><i style={{ backgroundColor: calendarBrandThemes[(brandOrder.get(item.id) || 0) % calendarBrandThemes.length].accent }}/>{item.name}</span>)}</div><div className="format-legend"><b>FORMAT</b>{(Object.entries(calendarFormatMeta) as [CalendarFormat, typeof calendarFormatMeta[CalendarFormat]][]).map(([key, meta]) => { const Icon = meta.icon; return <span className={`calendar-format ${key}`} key={key}><Icon size={12}/>{meta.label}</span>; })}</div></div>
     <div className="week-range">{calendarDate(dates[0])} – {calendarDate(dates[6])}</div>
     <div className="calendar-scroll"><div className="week-grid">{dates.map(day => {
       const key = day.toISOString().slice(0, 10);
       const dayJobs = visibleJobs.filter(job => jakartaDateKey(job.scheduled_for) === key).sort((a, b) => Date.parse(a.scheduled_for) - Date.parse(b.scheduled_for));
       const today = jakartaDateKey(new Date()) === key;
-      return <article className={today ? "calendar-day is-today" : "calendar-day"} key={key}><header><span>{calendarDay(day)}</span><b>{day.getUTCDate()}</b></header><div>{dayJobs.length ? dayJobs.map(job => {const item = contentMap.get(job.content_item_id);return <button className={`calendar-job ${job.status}`} key={job.id} onClick={() => { setSelected(job); const local = new Date(new Date(job.scheduled_for).getTime() + 7*60*60*1000).toISOString().slice(0,16); setNewTime(local); }}><small>{calendarTime(job.scheduled_for)} · {job.platform === "instagram" ? "IG" : "FB"} {job.publish_kind}</small><strong>{item?.title || "Konten"}</strong><span>{brandMap.get(item?.brand_id || "") || "Brand"}</span></button>}) : <span className="day-empty">Belum ada jadwal</span>}</div></article>;
+      return <article className={today ? "calendar-day is-today" : "calendar-day"} key={key}><header><span>{calendarDay(day)}</span><b>{day.getUTCDate()}</b></header><div>{dayJobs.length ? dayJobs.map(job => {const item = contentMap.get(job.content_item_id),brandId=item?.brand_id||"",format=calendarFormat(job,item),FormatIcon=calendarFormatMeta[format].icon;return <button className={`calendar-job ${job.status}`} style={calendarBrandStyle(brandId,brandOrder)} key={job.id} onClick={() => { setSelected(job); const local = new Date(new Date(job.scheduled_for).getTime() + 7*60*60*1000).toISOString().slice(0,16); setNewTime(local); }}><span className="calendar-job-head"><time>{calendarTime(job.scheduled_for)}</time><span className={`calendar-platform ${job.platform}`}>{job.platform === "instagram" ? "IG" : "FB"}</span></span><span className={`calendar-format ${format}`}><FormatIcon size={12}/>{calendarFormatMeta[format].label}</span><strong>{item?.title || "Konten"}</strong><span className="calendar-job-brand"><i/>{brandMap.get(brandId) || "Brand"}</span></button>}) : <span className="day-empty">Belum ada jadwal</span>}</div></article>;
     })}</div></div>
     {selected ? <div className="calendar-editor"><div><small>ATUR PUBLIKASI</small><strong>{contentMap.get(selected.content_item_id)?.title || "Konten"}</strong><span>{selected.platform === "instagram" ? "Instagram" : "Facebook"} {selected.publish_kind} · <Badge status={selected.status}/></span></div>{!["posted","publishing","cancelled"].includes(selected.status) ? <label>Jadwal baru · WIB<input type="datetime-local" value={newTime} onChange={event => setNewTime(event.target.value)}/></label> : null}<div>{!["posted","publishing","cancelled"].includes(selected.status) && onJobAction ? <button onClick={async () => { const target = new Date(`${newTime}:00+07:00`).toISOString(); await onJobAction(selected.id,"reschedule",target); setSelected(null); }}><CalendarDays size={15}/>Simpan jadwal</button> : null}{selected.status === "failed" && onJobAction ? <button className="secondary" onClick={async () => { await onJobAction(selected.id,"retry"); setSelected(null); }}><RotateCcw size={15}/>Coba lagi</button> : null}{!["posted","publishing","cancelled"].includes(selected.status) && onJobAction ? <button className="danger-button" onClick={async () => { await onJobAction(selected.id,"cancel"); setSelected(null); }}><XCircle size={15}/>Batalkan</button> : null}<button className="secondary" onClick={() => setSelected(null)}>Tutup</button></div></div> : null}
     {!visibleJobs.length && <div className="calendar-empty"><p>Belum ada jadwal untuk pilihan ini.</p><button onClick={onUpload}><UploadCloud size={17}/>Upload konten</button></div>}

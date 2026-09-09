@@ -178,6 +178,37 @@
 .media-inspection.warning { color: #956414; }
 .media-inspection.error { color: #aa2f39; }
 
+.caption-assistant {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #ded4f5;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fbf9ff, #f4efff);
+}
+
+.caption-assistant-heading { display: flex; align-items: center; gap: 10px; }
+.caption-assistant-heading > span { display: grid; place-items: center; width: 36px; height: 36px; color: #6746b5; background: white; border-radius: 11px; box-shadow: 0 4px 14px #5f3fa51a; }
+.caption-assistant-heading div { display: grid; gap: 2px; }
+.caption-assistant-heading small, .caption-goals small { color: var(--muted); font-weight: 500; line-height: 1.4; }
+.caption-goals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.caption-goals label { position: relative; display: flex; padding: 11px; border: 1px solid #e3ddee; border-radius: 11px; background: #fff; cursor: pointer; }
+.caption-goals label.selected { border-color: #9879d5; box-shadow: 0 0 0 3px #e9e0fb; }
+.caption-goals input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.caption-goals span { display: grid; gap: 4px; }
+.caption-goals b { font-size: .82rem; color: #564768; }
+.caption-goals small { font-size: .72rem; }
+.caption-assistant .caption-generate { justify-self: start; width: auto; margin: 0; }
+.caption-message { margin: 0; color: #654f82; font-size: .82rem; }
+.caption-variants { display: grid; gap: 10px; }
+.caption-variants article { display: grid; gap: 10px; padding: 14px; border: 1px solid #e5dfeb; border-radius: 13px; background: #fff; }
+.caption-variants article > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.caption-variants article small { color: #8d79a8; font-size: .67rem; font-weight: 800; letter-spacing: .08em; }
+.caption-variants article b { color: #57436e; font-size: .82rem; }
+.caption-variants article p { max-height: 210px; margin: 0; overflow: auto; color: #4f4855; font-size: .84rem; line-height: 1.6; white-space: pre-wrap; }
+.caption-variants article button { justify-self: start; width: auto; margin: 0; }
+.caption-disclaimer { margin: 0; color: #82778b; font-size: .72rem; line-height: 1.45; }
+
 @media (max-width: 760px) {
   .brand-kit-grid,
   .notification-summary { grid-template-columns: 1fr; }
@@ -187,4 +218,6 @@
   .format-picker { grid-template-columns: 1fr 1fr; }
   .format-card { min-height: 76px; }
   .media-preview-grid { grid-template-columns: 1fr; }
+  .caption-goals { grid-template-columns: 1fr; }
+  .caption-assistant .caption-generate, .caption-variants article button { width: 100%; }
 }

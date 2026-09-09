@@ -41,6 +41,7 @@ Apply migrations in order:
 9. `supabase/migrations/20260908053000_internal_operations_indexes.sql`
 10. `supabase/migrations/20260908053500_internal_operations_scope_hardening.sql`
 11. `supabase/migrations/20260908110000_brand_kit.sql`
+12. `supabase/migrations/20260908165338_carousel_and_story_assets.sql`
 
 Then deploy `supabase/functions/publish-worker` with JWT verification disabled **only because the function performs its own `x-worker-secret` check**, and run `supabase/scheduler.example.sql`.
 
@@ -66,9 +67,11 @@ Real Meta login and publishing require configured credentials and separate verif
 Supported worker paths in V1:
 
 - Instagram image Feed
+- Instagram image Carousel (2–10 slides)
 - Instagram image/video Story
 - Instagram Reel
 - Facebook image/video Feed
+- Facebook image Carousel (2–10 slides)
 - Facebook image/video Story
 - Facebook Reel
 
@@ -97,3 +100,12 @@ The Brand screen controls autopilot, minimum spacing, and one to four posting ti
 - Brand Kit edits follow brand-level access rules and are written to the activity history.
 - Upload inspects the selected image or video in the browser before storage. Blocking errors cover incompatible media/channel combinations, while crop and quality risks are shown as warnings.
 - The Notifications screen derives an actionable inbox from pending reviews, requested revisions, failed publish jobs, disconnected accounts, and tokens nearing expiry. An alert disappears automatically when its source issue is resolved.
+
+## Automatic captions
+
+- Upload can generate three Indonesian caption alternatives for Education, Soft Selling, or Promotion objectives.
+- The server combines the selected brand, title, brief, content format, destination channels, and Brand Kit. It never sends the uploaded media to the caption model.
+- Generated captions remain editable and still follow the normal approval/scheduling workflow. Story text is stored as copy reference and is not rendered onto the media.
+- Vercel deployments authenticate AI Gateway with project OIDC automatically. For local generation, link the project and run `vercel env pull`, or set `AI_GATEWAY_API_KEY` locally. `AI_CAPTION_MODEL` can optionally override the default model.
+- Requests require a valid Supabase user token, run brand queries under RLS, enforce short input limits, filter prohibited Brand Kit terms, and ask AI Gateway not to route prompts to training-enabled providers.
+- If AI Gateway is temporarily unavailable, the endpoint returns three Brand Kit-based templates so the upload flow can continue.

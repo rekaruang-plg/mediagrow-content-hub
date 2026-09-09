@@ -12,6 +12,7 @@ require.extensions['.tsx'] = (module, filename) => {
 };
 const { WorkspaceOverview, WorkspaceCalendar, evaluateMedia, evaluateMediaSelection } = require('../src/app/workspace-panels.tsx');
 const { buildWorkspaceNotifications, NotificationPanel } = require('../src/app/notification-panel.tsx');
+const { CaptionAssistant } = require('../src/app/caption-assistant.tsx');
 test('one content item with mixed channel outcomes displays both jobs and the failure detail', () => {
   const common = { content_item_id: 'content-1', publish_kind: 'feed', scheduled_for: '2026-09-09T02:00:00Z' };
   const html = renderToStaticMarkup(React.createElement(WorkspaceOverview, {
@@ -132,4 +133,27 @@ test('brand screen exposes editable brand kit through the protected RPC', () => 
   assert.ok(migration.includes('security invoker'));
   assert.ok(migration.includes('private.can_edit_brand'));
   assert.ok(migration.includes('brand.kit_updated'));
+});
+
+test('upload screen exposes editable AI caption choices without bypassing approval', () => {
+  const page = fs.readFileSync(require.resolve('../src/app/page.tsx'), 'utf8');
+  const assistant = fs.readFileSync(require.resolve('../src/app/caption-assistant.tsx'), 'utf8');
+  const route = fs.readFileSync(require.resolve('../src/app/api/ai/caption/route.ts'), 'utf8');
+  assert.ok(page.includes('<CaptionAssistant'));
+  assert.ok(page.includes('value={uploadCaption}'));
+  assert.ok(assistant.includes('Buat 3 pilihan caption'));
+  assert.ok(assistant.includes('Gunakan caption ini'));
+  assert.ok(route.includes('db.auth.getUser(token)'));
+  assert.ok(route.includes('disallowPromptTraining: true'));
+  assert.ok(route.includes('buildFallbackCaptions'));
+});
+
+test('caption assistant renders three goals and blocks generation until context is ready', () => {
+  const html = renderToStaticMarkup(React.createElement(CaptionAssistant, {
+    accessToken: 'token', brandId: '', title: '', brief: '', format: 'feed', channels: ['ig_feed'], onUse() {},
+  }));
+  assert.ok(html.includes('Caption Otomatis'));
+  assert.equal((html.match(/name="caption_goal"/g) || []).length, 3);
+  assert.ok(html.includes('Buat 3 pilihan caption'));
+  assert.ok(html.includes('disabled'));
 });
